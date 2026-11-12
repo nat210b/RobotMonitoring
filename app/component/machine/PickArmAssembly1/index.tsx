@@ -17,7 +17,7 @@ type Props = {
   className?: string;
 };
 
-export default function PickArmAssembly1({ height, animate = false, autoRotate = false, className }: Props) {
+export default function PickArmAssembly1({ height, animate = true, autoRotate = false, className }: Props) {
   return (
     <MachineViewer create={createPickArmAssembly1} animate={animate} autoRotate={autoRotate} height={height} className={className} />
   );

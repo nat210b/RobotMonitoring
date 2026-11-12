@@ -17,7 +17,7 @@ type Props = {
   className?: string;
 };
 
-export default function PadElastomerAssembly({ height, animate = false, autoRotate = false, className }: Props) {
+export default function PadElastomerAssembly({ height, animate = true, autoRotate = false, className }: Props) {
   return (
     <MachineViewer
       create={createPadElastomerAssembly}

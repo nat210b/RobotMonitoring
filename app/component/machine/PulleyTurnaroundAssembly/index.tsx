@@ -17,7 +17,7 @@ type Props = {
   className?: string;
 };
 
-export default function PulleyTurnaroundAssembly({ height, animate = false, autoRotate = false, className }: Props) {
+export default function PulleyTurnaroundAssembly({ height, animate = true, autoRotate = false, className }: Props) {
   return (
     <MachineViewer create={createPulleyTurnaroundAssembly} animate={animate} autoRotate={autoRotate} height={height} className={className} />
   );

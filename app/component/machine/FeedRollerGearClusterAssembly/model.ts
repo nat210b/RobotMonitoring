@@ -129,13 +129,21 @@ export function createFeedRollerGearClusterAssembly(): MachineParts {
   rotary.object.position.copy(rotaryPos);
   add(rotary.object);
 
-  const arm = createSixAxisRobot(m);
+  // Swings and cycle offsets checked collision-free by scripts/check-motion.ts
+  const arm = createSixAxisRobot(m, { swing: [-1.1], offset: 1 / 3 });
   arm.object.position.set(-0.4, topBack, -0.18);
   arm.object.rotation.y = Math.atan2(-(rotaryPos.z + 0.18), rotaryPos.x + 0.4); // face the rotary table
   add(arm.object);
 
   const scaraTop = 0.64; // both SCARA bases sit at the same height in the front view
-  const scara1 = createScara(m, { pedestalHeight: scaraTop - topBack, baseAngle: 0, elbowAngle: -2.25, link1: 0.26 });
+  const scara1 = createScara(m, {
+    pedestalHeight: scaraTop - topBack,
+    baseAngle: 0,
+    elbowAngle: -2.25,
+    link1: 0.26,
+    swing: [-0.8, 1.28],
+    lift: 0, // quill already sits just under the overhead beam
+  });
   scara1.object.position.set(-0.12, topBack, -0.3);
   add(scara1.object);
 
@@ -145,7 +153,8 @@ export function createFeedRollerGearClusterAssembly(): MachineParts {
     elbowAngle: -2.44,
     link1: 0.26,
     tool: "pcb",
-    phase: 1.7,
+    swing: [0.8, 0],
+    offset: 2 / 3,
   });
   scara2.object.position.set(0.4, topFront, 0.24);
   add(scara2.object);

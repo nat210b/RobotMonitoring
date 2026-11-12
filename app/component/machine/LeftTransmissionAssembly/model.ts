@@ -10,6 +10,7 @@ import {
   cylinder,
   vents,
   type MachineParts,
+  type RobotMotion,
   type Materials,
 } from "../parts";
 
@@ -156,16 +157,16 @@ export function createLeftTransmissionAssembly(): MachineParts {
 
   // Five SCARA robots posed exactly as in the top view (base J1, elbow J2 and quill, in
   // drawing px), so the arms sit side by side without crossing each other.
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number] }[] = [
-    { base: [650, 449], elbow: [780, 345], quill: [782, 477] }, // top-left
-    { base: [1192, 449], elbow: [1075, 315], quill: [1019, 449] }, // top-right
-    { base: [632, 560], elbow: [655, 760], quill: [778, 677] }, // middle-left
-    { base: [1192, 630], elbow: [1210, 832], quill: [1075, 760] }, // middle-right
-    { base: [922, 1010], elbow: [805, 882], quill: [944, 827] }, // front
+  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; motion: Partial<RobotMotion> }[] = [
+    { base: [650, 449], elbow: [780, 345], quill: [782, 477], motion: { swing: [-0.8, 1.28] } }, // top-left
+    { base: [1192, 449], elbow: [1075, 315], quill: [1019, 449], motion: { swing: [0.8, -0.8] } }, // top-right
+    { base: [632, 560], elbow: [655, 760], quill: [778, 677], motion: { swing: [0.8, -1.28] } }, // middle-left
+    { base: [1192, 630], elbow: [1210, 832], quill: [1075, 760], motion: { swing: [0.8, 0.48] } }, // middle-right
+    { base: [922, 1010], elbow: [805, 882], quill: [944, 827], motion: { swing: [-0.8, 1.28] } }, // front
   ];
   const yaw = (from: { x: number; z: number }, to: { x: number; z: number }) => Math.atan2(-(to.z - from.z), to.x - from.x);
   const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(b.x - a.x, b.z - a.z);
-  scaras.forEach(({ base, elbow, quill }, i) => {
+  scaras.forEach(({ base, elbow, quill, motion }, i) => {
     const b = fromTop(...base);
     const e = fromTop(...elbow);
     const q = fromTop(...quill);
@@ -176,7 +177,8 @@ export function createLeftTransmissionAssembly(): MachineParts {
       elbowAngle: yaw(e, q) - baseAngle,
       link1: dist(b, e),
       link2: dist(e, q),
-      phase: i * 1.1,
+      offset: i / scaras.length,
+      ...motion,
     });
     robot.object.position.set(b.x, deck, b.z);
     root.add(robot.object);

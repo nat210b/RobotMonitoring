@@ -17,7 +17,7 @@ type Props = {
   className?: string;
 };
 
-export default function PickDriveAssembly({ height, animate = false, autoRotate = false, className }: Props) {
+export default function PickDriveAssembly({ height, animate = true, autoRotate = false, className }: Props) {
   return (
     <MachineViewer create={createPickDriveAssembly} animate={animate} autoRotate={autoRotate} height={height} className={className} />
   );

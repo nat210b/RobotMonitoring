@@ -13,6 +13,7 @@ import {
   panelZY,
   sixAxisPose,
   type MachineParts,
+  type RobotMotion,
   type Materials,
 } from "../parts";
 
@@ -206,13 +207,13 @@ export function createPickArmAssembly2(): MachineParts {
   add(disc);
 
   // ── Two SCARAs on pink pedestals, posed as drawn ───────────────────────
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number] }[] = [
-    { base: [240, 240], elbow: [345, 135], quill: [478, 207] }, // back-left
-    { base: [920, 140], elbow: [880, 300], quill: [738, 232] }, // back-right
+  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; motion: Partial<RobotMotion> }[] = [
+    { base: [240, 240], elbow: [345, 135], quill: [478, 207], motion: { swing: [-0.8, 1.28], dip: 0.02 } }, // back-left
+    { base: [920, 140], elbow: [880, 300], quill: [738, 232], motion: { swing: [-0.8, 1.28], dip: 0.02 } }, // back-right
   ];
   const yaw = (a: XZ, b: XZ) => Math.atan2(-(b.z - a.z), b.x - a.x);
   const dist = (a: XZ, b: XZ) => Math.hypot(b.x - a.x, b.z - a.z);
-  scaras.forEach(({ base, elbow, quill }, i) => {
+  scaras.forEach(({ base, elbow, quill, motion }, i) => {
     const b = fromTop(...base);
     const e = fromTop(...elbow);
     const q = fromTop(...quill);
@@ -226,7 +227,8 @@ export function createPickArmAssembly2(): MachineParts {
       link2: dist(e, q),
       headHeight: 0.3,
       headWidth: 0.13,
-      phase: i * 1.3,
+      offset: i / scaras.length,
+      ...motion,
     });
     robot.object.position.set(b.x, deckTop, b.z);
     add(robot.object);
@@ -239,7 +241,7 @@ export function createPickArmAssembly2(): MachineParts {
   add(box(0.34, 0.012, 0.34, m.worktop, fromTop(935, 705).x, deckTop + 0.006, fromTop(935, 705).z));
   const armScale = 1.35;
   const reach = Math.hypot(armTarget.x - armBase.x, armTarget.z - armBase.z);
-  const arm = createSixAxisRobot(m, { ...sixAxisPose(reach / armScale, (0.17 + 0.05 + 0.22) / armScale) });
+  const arm = createSixAxisRobot(m, { ...sixAxisPose(reach / armScale, (0.17 + 0.05 + 0.22) / armScale), swing: [1.1], dip: 0.03 });
   arm.object.scale.setScalar(armScale);
   arm.object.position.set(armBase.x, deckTop + 0.012, armBase.z);
   arm.object.rotation.y = Math.atan2(-(armTarget.z - armBase.z), armTarget.x - armBase.x);

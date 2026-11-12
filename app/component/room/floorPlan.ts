@@ -83,7 +83,7 @@ export const ROOM_LAYOUT: MachinePlacement[] = [
 
   // Front-left [20]. Turned 180° as in the room drawing: bowl feeder at the front, one
   // fence at the back, the other fence and a tray rack on the right, robot stands on the left.
-  { id: "PHT-01", type: "PHOTO TRAY ASSEMBLY", x: -4.12, z: 5.49, rotation: Math.PI },
+  { id: "PHT-01", type: "PHOTO TRAY ASSEMBLY", x: -4.12 + 3 * ROOM.tile, z: 5.49, rotation: Math.PI },
 
   // Robot row behind the PAD block [21, 22, 25, 26, 27]
   { id: "PA1-01", type: "PICK ARM ASSEMBLY1", x: 0.55, z: 1.93 },
