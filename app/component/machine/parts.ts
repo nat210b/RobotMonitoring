@@ -8,6 +8,52 @@ export type MachineParts = {
 
 type Vec3 = [number, number, number];
 
+/**
+ * Length of one robot work cycle (s). Every robot repeats its pick-and-place in exactly this
+ * time, so a machine's whole motion repeats every cycle (scripts/check-motion.ts relies on it).
+ */
+export const ROBOT_CYCLE = 6;
+
+/**
+ * Per-robot motion settings. The update reads them every frame; they are also kept on the
+ * robot root as `userData.motion` so tooling can tune them (scripts/plan-motion.ts).
+ */
+export type RobotMotion = {
+  /**
+   * Joint offsets from the drawn (pick) pose to the place pose, radians.
+   * SCARA: [J1, J2]. 6-axis: [J1 yaw].
+   */
+  swing: number[];
+  /** Start of this robot's cycle as a fraction of ROBOT_CYCLE (staggers robots sharing a cell). */
+  offset: number;
+  /** How far the tool lowers at each end: metres of quill stroke (SCARA) or radians of elbow (6-axis). */
+  dip: number;
+  /** How far the tool pulls up while travelling: metres of quill (SCARA) or radians of shoulder (6-axis). */
+  lift: number;
+};
+
+/**
+ * Where a robot is in its work cycle at time `t`: `move` runs 0 → 1 (pick pose → place pose)
+ * and back, `dip` rises 0 → 1 → 0 while it lowers its tool at either end. Before its first
+ * cycle starts (`offset`) the robot waits in the drawn pose, so t = 0 is always the drawn pose.
+ *
+ *   0.00–0.12 pick (dip) · 0.12–0.42 travel · 0.42–0.54 place (dip) · 0.54–0.84 return · rest
+ */
+export function workCycle(t: number, offset = 0) {
+  const start = offset * ROBOT_CYCLE;
+  if (t < start) return { move: 0, dip: 0 };
+  const u = ((t - start) / ROBOT_CYCLE) % 1;
+  const f = (a: number, b: number) => (u - a) / (b - a);
+  if (u < 0.12) return { move: 0, dip: Math.sin(Math.PI * f(0, 0.12)) };
+  if (u < 0.42) return { move: ease(f(0.12, 0.42)), dip: 0 };
+  if (u < 0.54) return { move: 1, dip: Math.sin(Math.PI * f(0.42, 0.54)) };
+  if (u < 0.84) return { move: 1 - ease(f(0.54, 0.84)), dip: 0 };
+  return { move: 0, dip: 0 };
+}
+
+/** Travel lift profile for a cycle position `move`: up early in the move, held, down at the end. */
+const travelLift = (move: number) => ease(Math.min(1, 3 * Math.sin(Math.PI * move)));
+
 export function createMaterials() {
   const std = (color: number, roughness = 0.6, metalness = 0) =>
     new THREE.MeshStandardMaterial({ color, roughness, metalness });
@@ -93,12 +139,11 @@ export function panelZY(z0: number, z1: number, y0: number, y1: number, x: numbe
   return box(thickness, y1 - y0, z1 - z0, mat, x, (y0 + y1) / 2, (z0 + z1) / 2);
 }
 
-const ease = (f: number) => f * f * (3 - 2 * f);
+function ease(f: number) {
+  return f * f * (3 - 2 * f);
+}
 
-/** Sine motion offset that is exactly 0 at t = 0, so the resting pose is the drawn pose. */
-const wave = (t: number, speed: number, phase = 0) => Math.sin(t * speed + phase) - Math.sin(phase);
-
-type SixAxisOptions = {
+type SixAxisOptions = Partial<RobotMotion> & {
   /** Resting joint angles (radians): shoulder lean, elbow, wrist pitch. */
   shoulder?: number;
   elbow?: number;
@@ -153,10 +198,12 @@ function createConnectorPanel(m: Materials) {
 /** 6-axis articulated arm (Delta DRV style). Forward reach is local +x. */
 export function createSixAxisRobot(
   m: Materials,
-  { shoulder = -0.3, elbow = -0.55, wrist = -0.9, body, baseCover = "cable" }: SixAxisOptions = {},
+  { shoulder = -0.3, elbow = -0.55, wrist = -0.9, body, baseCover = "cable", swing = [0.5], offset = 0, dip = 0.12, lift = 0.1 }: SixAxisOptions = {},
 ) {
   const root = new THREE.Group();
+  const motion: RobotMotion = { swing, offset, dip, lift };
   root.userData.kind = "robot";
+  root.userData.motion = motion;
   const white = body ?? m.robotWhite;
   root.add(cylinder(0.08, 0.09, 0.05, white, 0, 0.025, 0));
   if (baseCover === "connector") root.add(createConnectorPanel(m));
@@ -195,17 +242,22 @@ export function createSixAxisRobot(
   j5.add(box(0.012, 0.05, 0.03, m.dark, 0.012, -0.12, 0)); // fingers
   j5.add(box(0.012, 0.05, 0.03, m.dark, 0.048, -0.12, 0));
 
+  // Pick at the drawn pose, lift while turning J1 to the place pose, lower, and come back.
+  // The wrist cancels the shoulder and elbow moves so the gripper keeps pointing the same way.
   const update = (t: number) => {
-    j1.rotation.y = 0.35 * wave(t, 0.6);
-    j2.rotation.z = shoulder + 0.12 * wave(t, 0.9);
-    j3.rotation.z = elbow + 0.2 * wave(t, 0.9, 1);
-    j5.rotation.z = wrist + 0.25 * wave(t, 1.3);
+    const { move, dip: lower } = workCycle(t, motion.offset);
+    const up = motion.lift * travelLift(move);
+    const reach = -motion.dip * lower;
+    j1.rotation.y = (motion.swing[0] ?? 0) * move;
+    j2.rotation.z = shoulder + up;
+    j3.rotation.z = elbow + reach;
+    j5.rotation.z = wrist - up - reach;
   };
   update(0);
   return { object: root, update };
 }
 
-type ScaraOptions = {
+type ScaraOptions = Partial<RobotMotion> & {
   pedestalHeight: number;
   /** Absolute yaw of the first link (radians, 0 = +x). */
   baseAngle: number;
@@ -223,7 +275,6 @@ type ScaraOptions = {
   pedestalMaterial?: THREE.Material;
   /** Extra tooling hung from the quill (e.g. a PCB fixture). */
   tool?: "pcb" | "gripper";
-  phase?: number;
 };
 
 /**
@@ -269,7 +320,7 @@ export function createScara(m: Materials, opts: ScaraOptions) {
   const {
     pedestalHeight: ph,
     baseAngle,
-    elbowAngle,
+    elbowAngle: drawnElbow,
     link1 = 0.24,
     link2 = SCARA_QUILL_OFFSET,
     headHeight = 0.13,
@@ -277,10 +328,16 @@ export function createScara(m: Materials, opts: ScaraOptions) {
     connectorBoard,
     pedestalMaterial = m.pedestal,
     tool = "gripper",
-    phase = 0,
+    swing = [0.35, -0.35],
+    offset = 0,
+    dip = 0.04,
+    lift = 0.04,
   } = opts;
+  const elbowAngle = Math.atan2(Math.sin(drawnElbow), Math.cos(drawnElbow)); // same pose, wrapped into ±π
   const root = new THREE.Group();
+  const motion: RobotMotion = { swing, offset, dip, lift };
   root.userData.kind = "robot";
+  root.userData.motion = motion;
   root.add(box(0.15, ph, 0.15, pedestalMaterial, 0, ph / 2, 0));
   root.add(box(0.13, 0.16, 0.16, m.robotGrey, 0, ph + 0.08, 0));
   if (connectorBoard) {
@@ -332,12 +389,19 @@ export function createScara(m: Materials, opts: ScaraOptions) {
   j1.rotation.y = baseAngle;
   j2.rotation.y = elbowAngle;
 
+  // Drawn joint angles, so tooling can keep a planned swing inside the J2 limit.
+  root.userData.joints = { base: baseAngle, elbow: elbowAngle };
+
+  // Pick at the drawn pose, swing both links to the place pose, lower, and come back. The
+  // quill pulls up while travelling (clearing tracks and bowl rims) and strokes down at
+  // either end. J2 never folds past its limit, so the links can't pass through each other.
   const update = (t: number) => {
-    // Small swing around the drawn pose so neighbouring arms in crowded cells never meet
-    j1.rotation.y = baseAngle + 0.12 * wave(t, 0.7, phase);
-    j2.rotation.y = elbowAngle + 0.18 * wave(t, 0.7, phase + 0.8);
-    quill.position.y = 0.02 - 0.05 * Math.abs(wave(t, 1.05, phase)); // rests retracted, dips down
+    const { move, dip: lower } = workCycle(t, motion.offset);
+    j1.rotation.y = baseAngle + (motion.swing[0] ?? 0) * move;
+    j2.rotation.y = THREE.MathUtils.clamp(elbowAngle + (motion.swing[1] ?? 0) * move, -SCARA_ELBOW_LIMIT, SCARA_ELBOW_LIMIT);
+    quill.position.y = 0.02 + motion.lift * travelLift(move) - motion.dip * lower;
   };
+  update(0);
   return { object: root, update };
 }
 
@@ -419,6 +483,8 @@ export function createBowlFeeder(
 
 /** Distance from a SCARA's elbow joint to its quill (see createScara). */
 export const SCARA_QUILL_OFFSET = 0.19;
+/** SCARA J2 range either side of straight (radians, ≈ ±145° as on Delta DRS arms). */
+export const SCARA_ELBOW_LIMIT = 2.53;
 
 /**
  * Two-link inverse kinematics for createScara: angles that put the quill at (dx, dz)

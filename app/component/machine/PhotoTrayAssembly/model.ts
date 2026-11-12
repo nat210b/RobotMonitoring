@@ -9,6 +9,7 @@ import {
   sixAxisPose,
   type MachineParts,
   type Materials,
+  type RobotMotion,
 } from "../parts";
 
 /**
@@ -133,6 +134,7 @@ export function createPhotoTrayAssembly(): MachineParts {
   const { tableHeight: tableH, fenceHeight } = LAYOUT;
   const root = new THREE.Group();
   const add = (...objects: THREE.Object3D[]) => root.add(...objects);
+  const movers: { update: (t: number) => void }[] = [];
 
   // ── Main table (px 430–1190 × 200–578), split in two halves ────────────
   const t0 = fromTop(430, 200);
@@ -164,7 +166,9 @@ export function createPhotoTrayAssembly(): MachineParts {
   // ── Five 6-axis robots on stands ──────────────────────────────────────
   // Each robot works its own nest: the nest on the side of its dial facing the robot.
   // The back-middle robot transfers between the two dials, so it targets the gap
-  // between them. Separate targets keep the arms apart (checked: ≥ 20 mm clearance).
+  // between them. Each robot picks at its nest and swings J1 to a place pose; the swing
+  // directions and staggered cycle offsets keep the arms apart while they move
+  // (scripts/check-motion.ts).
   const nestRadius = 0.35;
   const facing = (dial: XZ, base: XZ) => {
     const dx = base.x - dial.x;
@@ -172,30 +176,31 @@ export function createPhotoTrayAssembly(): MachineParts {
     const d = Math.hypot(dx, dz);
     return { x: dial.x + (dx / d) * nestRadius, z: dial.z + (dz / d) * nestRadius };
   };
-  const robots: { base: [number, number]; target: (b: XZ) => XZ }[] = [
-    { base: [310, 445], target: (b) => facing(dialL, b) }, // left
-    { base: [815, 85], target: () => fromTop(812, 330) }, // back-middle (between dials)
-    { base: [1065, 85], target: (b) => facing(dialR, b) }, // back-right
-    { base: [1310, 400], target: (b) => facing(dialR, b) }, // right
-    { base: [1000, 700], target: (b) => facing(dialR, b) }, // front
+  const robots: { base: [number, number]; target: (b: XZ) => XZ; motion: Partial<RobotMotion> }[] = [
+    { base: [310, 445], target: (b) => facing(dialL, b), motion: { swing: [-1.1] } }, // left
+    { base: [815, 85], target: () => fromTop(812, 330), motion: { swing: [-1.1] } }, // back-middle (between dials)
+    { base: [1065, 85], target: (b) => facing(dialR, b), motion: { swing: [1.1] } }, // back-right
+    { base: [1310, 400], target: (b) => facing(dialR, b), motion: { swing: [1.1], dip: 0.06 } }, // right
+    { base: [1000, 700], target: (b) => facing(dialR, b), motion: { swing: [1.1] } }, // front
   ];
   const standH = tableH;
   const robotScale = 1.45;
   const nestTop = tableH + 0.1;
   const toolLength = 0.25; // wrist to gripper tip plus ~5 cm hover, world metres
-  for (const { base, target } of robots) {
+  robots.forEach(({ base, target, motion }, i) => {
     const b = fromTop(...base);
     const t = target(b);
     const stand = createRobotStand(m, standH);
     stand.position.set(b.x, 0, b.z);
     add(stand);
     const pose = sixAxisPose(Math.hypot(t.x - b.x, t.z - b.z) / robotScale, (nestTop + toolLength - standH) / robotScale);
-    const robot = createSixAxisRobot(m, { ...pose, body: m.epson, baseCover: "connector" });
+    const robot = createSixAxisRobot(m, { ...pose, body: m.epson, baseCover: "connector", offset: i / robots.length, ...motion });
     robot.object.scale.setScalar(robotScale);
     robot.object.position.set(b.x, standH, b.z);
     robot.object.rotation.y = Math.atan2(-(t.z - b.z), t.x - b.x);
     add(robot.object);
-  }
+    movers.push(robot);
+  });
 
   // ── Bowl feeder on its stand (back-left, px 430–570 × 25–165) ───────────
   const bowlAt = fromTop(500, 95);
@@ -232,5 +237,7 @@ export function createPhotoTrayAssembly(): MachineParts {
   add(createStackLight(m, sl1.x, sl1.z, fenceHeight, 1.5));
   add(createStackLight(m, sl2.x, sl2.z, tableH, 1.52));
 
-  return { object: root };
+  const update = (t: number) => movers.forEach((part) => part.update(t));
+  update(0);
+  return { object: root, update };
 }

@@ -11,10 +11,12 @@ export const photoTrayAssembly = {
 
 type Props = {
   height?: number;
+  /** Run robot motion. */
+  animate?: boolean;
   autoRotate?: boolean;
   className?: string;
 };
 
-export default function PhotoTrayAssembly({ height, autoRotate = false, className }: Props) {
-  return <MachineViewer create={createPhotoTrayAssembly} autoRotate={autoRotate} height={height} className={className} />;
+export default function PhotoTrayAssembly({ height, animate = true, autoRotate = false, className }: Props) {
+  return <MachineViewer create={createPhotoTrayAssembly} animate={animate} autoRotate={autoRotate} height={height} className={className} />;
 }

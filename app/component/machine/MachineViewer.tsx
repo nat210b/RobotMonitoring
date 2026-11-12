@@ -77,7 +77,7 @@ export default function MachineViewer({
     const radius = bounds.getSize(new THREE.Vector3()).length() / 2;
 
     const camera = new THREE.PerspectiveCamera(35, 1, radius * 0.01, radius * 50);
-    camera.position.copy(center).add(new THREE.Vector3(1.4, 0.9, 1.9).normalize().multiplyScalar(radius * viewDistance));
+    camera.position.copy(center).add(new THREE.Vector3(1, 1.414, 1).normalize().multiplyScalar(radius * viewDistance));
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;

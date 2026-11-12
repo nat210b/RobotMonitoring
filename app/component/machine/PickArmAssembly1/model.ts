@@ -10,6 +10,7 @@ import {
   cylinder,
   POWER_SUPPLY,
   type MachineParts,
+  type RobotMotion,
 } from "../parts";
 
 /**
@@ -49,13 +50,13 @@ export function createPickArmAssembly1(): MachineParts {
   const { deckTop } = cell;
 
   // ── Two SCARAs on pedestals, posed as drawn (base J1, elbow J2, quill) ───
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number] }[] = [
-    { base: [548, 222], elbow: [465, 585], quill: [705, 720] }, // left
-    { base: [1112, 222], elbow: [970, 560], quill: [1188, 722] }, // right
+  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; motion: Partial<RobotMotion> }[] = [
+    { base: [548, 222], elbow: [465, 585], quill: [705, 720], motion: { swing: [0.38, -0.6], dip: 0.01 } }, // left
+    { base: [1112, 222], elbow: [970, 560], quill: [1188, 722], motion: { swing: [-0.8, 0.8], dip: 0 } }, // right
   ];
   const yaw = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.atan2(-(b.z - a.z), b.x - a.x);
   const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(b.x - a.x, b.z - a.z);
-  scaras.forEach(({ base, elbow, quill }, i) => {
+  scaras.forEach(({ base, elbow, quill, motion }, i) => {
     const b = fromTop(...base);
     const e = fromTop(...elbow);
     const q = fromTop(...quill);
@@ -69,7 +70,8 @@ export function createPickArmAssembly1(): MachineParts {
       headHeight: 0.17,
       headWidth: 0.13,
       connectorBoard: "-z", // green rear connector board faces the back of the machine
-      phase: i * 1.4,
+      offset: i / scaras.length,
+      ...motion,
     });
     robot.object.position.set(b.x, deckTop, b.z);
     add(robot.object);

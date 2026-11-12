@@ -10,6 +10,7 @@ import {
   panelXY,
   panelZY,
   type MachineParts,
+  type RobotMotion,
   type Materials,
 } from "../parts";
 
@@ -176,14 +177,14 @@ export function createUpgAssembly(): MachineParts {
   add(table);
 
   // ── Three SCARAs, posed as drawn (base J1, elbow J2, quill) ──────────────
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "-x" | "-z" | "+x" }[] = [
-    { base: [322, 720], elbow: [258, 540], quill: [440, 532], board: "-x" }, // front-left
-    { base: [805, 235], elbow: [630, 165], quill: [622, 348], board: "-z" }, // back-middle
-    { base: [1180, 712], elbow: [1117, 525], quill: [945, 468], board: "+x" }, // front-right
+  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "-x" | "-z" | "+x"; motion: Partial<RobotMotion> }[] = [
+    { base: [322, 720], elbow: [258, 540], quill: [440, 532], board: "-x", motion: { swing: [-0.8, -0.48] } }, // front-left
+    { base: [805, 235], elbow: [630, 165], quill: [622, 348], board: "-z", motion: { swing: [0.8, 0.48] } }, // back-middle
+    { base: [1180, 712], elbow: [1117, 525], quill: [945, 468], board: "+x", motion: { swing: [0, 0.8], lift: 0.12 } }, // front-right
   ];
   const yaw = (a: XZ, b: XZ) => Math.atan2(-(b.z - a.z), b.x - a.x);
   const dist = (a: XZ, b: XZ) => Math.hypot(b.x - a.x, b.z - a.z);
-  scaras.forEach(({ base, elbow, quill, board }, i) => {
+  scaras.forEach(({ base, elbow, quill, board, motion }, i) => {
     const b = fromTop(...base);
     const e = fromTop(...elbow);
     const q = fromTop(...quill);
@@ -197,7 +198,8 @@ export function createUpgAssembly(): MachineParts {
       headHeight: 0.17,
       headWidth: 0.14,
       connectorBoard: board,
-      phase: i * 1.2,
+      offset: i / scaras.length,
+      ...motion,
     });
     robot.object.position.set(b.x, T, b.z);
     add(robot.object);

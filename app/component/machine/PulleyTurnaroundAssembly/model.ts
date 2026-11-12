@@ -11,6 +11,7 @@ import {
   panelXY,
   panelZY,
   type MachineParts,
+  type RobotMotion,
   type Materials,
 } from "../parts";
 
@@ -349,13 +350,13 @@ export function createPulleyTurnaroundAssembly(): MachineParts {
   movers.push(table);
 
   // Two SCARAs on tall pedestals, posed as drawn (base J1, elbow J2, quill)
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "+x" | "+z" }[] = [
-    { base: [1250, 628], elbow: [1130, 782], quill: [1022, 712], board: "+x" }, // back-right
-    { base: [745, 962], elbow: [855, 822], quill: [978, 875], board: "+z" }, // front-left
+  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "+x" | "+z"; motion: Partial<RobotMotion> }[] = [
+    { base: [1250, 628], elbow: [1130, 782], quill: [1022, 712], board: "+x", motion: { swing: [-0.8, 1.28] } }, // back-right
+    { base: [745, 962], elbow: [855, 822], quill: [978, 875], board: "+z", motion: { swing: [-0.8, 1.28] } }, // front-left
   ];
   const yaw = (a: XZ, b: XZ) => Math.atan2(-(b.z - a.z), b.x - a.x);
   const dist = (a: XZ, b: XZ) => Math.hypot(b.x - a.x, b.z - a.z);
-  scaras.forEach(({ base, elbow, quill, board }, i) => {
+  scaras.forEach(({ base, elbow, quill, board, motion }, i) => {
     const b = fromTop(...base);
     const e = fromTop(...elbow);
     const q = fromTop(...quill);
@@ -370,7 +371,8 @@ export function createPulleyTurnaroundAssembly(): MachineParts {
       headHeight: 0.15,
       headWidth: 0.13,
       connectorBoard: board,
-      phase: i * 1.5,
+      offset: i / scaras.length,
+      ...motion,
     });
     robot.object.position.set(b.x, deckTop, b.z);
     add(robot.object);

@@ -17,6 +17,8 @@ type Props = {
   /** Fill the parent element's width and height. */
   fill?: boolean;
   autoRotate?: boolean;
+  /** Run the robots' work cycles (on by default). */
+  animate?: boolean;
   /** Called with the clicked machine's id (ROOM_LAYOUT id), or null for empty space. */
   onSelect?: (id: string | null) => void;
   /** Machine id to outline. */
@@ -25,14 +27,15 @@ type Props = {
 };
 
 /** 3D view of the whole robot combined room with every machine in place. */
-export default function Room({ height = 640, fill = false, autoRotate = false, onSelect, selectedId, className }: Props) {
+export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, className }: Props) {
   return (
     <MachineViewer
       create={createRoom}
       autoRotate={autoRotate}
+      animate={animate}
       height={fill ? "fill" : height}
       minZoom={0.15}
-      viewDistance={1.9}
+      viewDistance={3.2}
       onSelect={onSelect}
       selectedId={selectedId}
       className={className}
