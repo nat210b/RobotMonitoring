@@ -1,26 +1,144 @@
 @import "tailwindcss";
 
+/* ───────── Design tokens ───────── */
 :root {
+  /* brand */
+  --brand: #64a70b;
+  --brand-hover: #558f08;
+  --brand-active: #487a06;
+  --brand-soft: #eef6e1;
+  --on-brand: #ffffff;
+
+  /* surfaces */
   --background: #ffffff;
-  --foreground: #171717;
+  --surface: #ffffff;
+  --surface-2: #f6f8f5;
+  --surface-3: #eef2ec;
+
+  /* text */
+  --foreground: #1e2a38;
+  --muted: #78878b;
+
+  /* lines */
+  --border: #dfe7dc;
+
+  /* status */
+  --danger: #d64545;
+  --warning: #d98e04;
+  --info: #2f7fc1;
+
+  /* shape */
+  --radius-card: 12px;
+  --radius-control: 8px;
+
+  /* motion */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #0e1620;
+    --surface: #152130;
+    --surface-2: #1b2a3b;
+    --surface-3: #23344a;
+    --brand-soft: #1f3412;
+    --foreground: #e8eef2;
+    --border: #2b3d52;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #0e1620;
+  --surface: #152130;
+  --surface-2: #1b2a3b;
+  --surface-3: #23344a;
+  --brand-soft: #1f3412;
+  --foreground: #e8eef2;
+  --border: #2b3d52;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-soft: var(--brand-soft);
+  --color-on-brand: var(--on-brand);
+  --color-muted: var(--muted);
+  --color-line: var(--border);
+  --color-danger: var(--danger);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --ease-ui: var(--ease);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* ───────── 12-column grid (responds to container width, mobile-first) ───────── */
+.ui-grid {
+  container-type: inline-size;
+  width: 100%;
+}
+.ui-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--grid-gap, 16px);
+}
+.ui-col {
+  grid-column: span var(--span, 12) / span var(--span, 12);
+  min-width: 0;
+}
+@container (min-width: 480px) {
+  .ui-col {
+    grid-column: span var(--span-sm, var(--span, 12)) / span var(--span-sm, var(--span, 12));
+  }
+}
+@container (min-width: 720px) {
+  .ui-col {
+    --_md: var(--span-md, var(--span-sm, var(--span, 12)));
+    grid-column: span var(--_md) / span var(--_md);
+  }
+}
+@container (min-width: 1024px) {
+  .ui-col {
+    --_lg: var(--span-lg, var(--span-md, var(--span-sm, var(--span, 12))));
+    grid-column: span var(--_lg) / span var(--_lg);
+  }
+}
+
+/* ───────── Motion: honour reduced-motion ───────── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
+    --duration-slow: 0.01ms;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

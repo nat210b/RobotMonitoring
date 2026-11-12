@@ -1,36 +1,79 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Robot Combined Room Dashboard
 
-## Getting Started
+A web dashboard project for monitoring robots and product workflows in a shared
+operating room. The planned experience includes a Three.js 3D room model with
+isometric and free-view camera modes, plus robot and product-flow information
+from MongoDB.
 
-First, run the development server:
+## Project status
+
+The current app is an early UI design-system prototype, not yet the complete
+robot-monitoring dashboard. It includes reusable dashboard components and
+sample fleet records. The 3D room visualization, live robot workflows, and
+MongoDB integration are planned and are not implemented yet.
+
+## Current UI prototype
+
+The prototype demonstrates:
+
+- Dashboard colors, typography, and surface styles
+- Reusable buttons, badges, cards, form controls, and responsive grid
+- A sortable robot-fleet table and pagination
+- Example robot status and summary data (static sample data)
+
+## Tech stack
+
+- [Next.js](https://nextjs.org/) 16 with the App Router
+- [React](https://react.dev/) 19 and [TypeScript](https://www.typescriptlang.org/)
+- [Tailwind CSS](https://tailwindcss.com/) 4
+- [Three.js](https://threejs.org/) is a project dependency for the planned 3D
+  visualization; no room scene is implemented yet.
+
+## Getting started
+
+### Requirements
+
+- Node.js and npm
+
+### Install and run
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev    # Start the local development server
+npm run lint   # Run ESLint
+npm run build  # Create a production build
+npm run start  # Start the production server
+```
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```text
+app/
+  component/
+    ui/          Reusable UI components
+    machine/     Store machine component
+  globals.css    Global styles and design tokens
+  layout.tsx     Root layout and page metadata
+  page.tsx       Current design-system prototype
+public/          Static assets
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Planned direction
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The intended dashboard will bring together:
 
-## Deploy on Vercel
+- A combined-room 3D view of robots and work areas
+- Isometric and free camera views of the room
+- Robot activity and product workflow status
+- Robot and workflow data received from MongoDB
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+These are goals for future development; the current prototype uses local sample
+data and does not connect to a database.
