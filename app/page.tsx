@@ -10,9 +10,6 @@ export default function Home() {
           <span className="grid size-8 place-items-center rounded-control bg-brand-soft text-sm font-semibold text-brand">R</span>
           <div>
             <h1 className="text-base font-semibold tracking-tight">{ROOM_NAME}</h1>
-            <p className="text-xs text-muted">
-              {ROOM_LAYOUT.length} machines · click a machine to edit its robot · drag to rotate, scroll to zoom, right-drag to pan
-            </p>
           </div>
         </div>
         <Link href="/design" className="text-sm font-medium text-brand hover:underline">

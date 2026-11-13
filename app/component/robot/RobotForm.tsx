@@ -116,7 +116,7 @@ export function RobotForm({ id, machineId, robot, onSaved, onSavingChange }: Rob
       )}
       {robot?.updatedAt && (
         <p className="text-xs text-muted">
-          Record #{robot.runningNo} · last saved {new Date(robot.updatedAt).toLocaleString()}
+          Updated:{new Date(robot.updatedAt).toLocaleString()}
         </p>
       )}
     </form>

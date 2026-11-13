@@ -1,7 +1,7 @@
 import "server-only";
 import type { ObjectId } from "mongodb";
 import { getDb } from "./mongodb";
-import type { RobotStatusInput } from "./robotStatus";
+import type { RobotStatusInput, RobotStatusLogEntry } from "./robotStatus";
 
 export class UnknownRobotError extends Error {
   constructor(robotId: string) {
@@ -21,4 +21,22 @@ export async function insertRobotStatus(input: RobotStatusInput): Promise<{ id: 
 
   const { insertedId } = await db.collection<RobotStatusInput & { _id?: ObjectId }>("robotStatus").insertOne({ ...input });
   return { id: insertedId.toHexString() };
+}
+
+/** Latest inspection results from `robotStatus`, newest first. */
+export async function listRobotStatusLog(limit = 200): Promise<RobotStatusLogEntry[]> {
+  const docs = await (await getDb())
+    // Existing documents name the robot `robotID` (like the robots collection); older code wrote `robot_id`.
+    .collection<Omit<RobotStatusInput, "robot_id"> & { _id: ObjectId; robot_id?: string; robotID?: string }>("robotStatus")
+    .find({})
+    .sort({ datetime: -1 })
+    .limit(limit)
+    .toArray();
+  return docs.map((d) => ({
+    id: d._id.toHexString(),
+    robot_id: String(d.robotID ?? d.robot_id ?? ""),
+    status: d.status,
+    failDetail: d.failDetail ?? "",
+    datetime: new Date(d.datetime).toISOString(),
+  }));
 }

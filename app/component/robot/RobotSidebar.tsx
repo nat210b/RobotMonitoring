@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button, Sidebar } from "../ui";
 import { ROOM_LAYOUT } from "../room/floorPlan";
 import type { Robot } from "@/app/lib/robots";
+import type { MachineVideo } from "@/app/lib/machineVideos";
+import { MachineVideoPanel } from "./MachineVideoPanel";
 import { RobotForm } from "./RobotForm";
 import { RobotStatusBadge } from "./RobotStatusBadge";
 
@@ -20,11 +22,14 @@ export interface RobotSidebarProps {
   onRetry: () => void;
   onClose: () => void;
   onSaved: (robot: Robot) => void;
+  /** Uploaded video of this machine's type (shared by all machines of the type), if any. */
+  video?: MachineVideo;
+  onVideoChange: (video: MachineVideo | null) => void;
   className?: string;
 }
 
 /** Left side bar shown only while a machine is selected: the edit form of that machine's robot. */
-export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClose, onSaved, className }: RobotSidebarProps) {
+export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClose, onSaved, video, onVideoChange, className }: RobotSidebarProps) {
   const [saving, setSaving] = useState(false);
   const machine = ROOM_LAYOUT.find((m) => m.id === machineId);
   const ready = !loading && !error;
@@ -66,8 +71,10 @@ export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClos
       ) : loading ? (
         <p className="text-sm text-muted">Loading robot data…</p>
       ) : (
-        // key: start a fresh form for each machine
-        <RobotForm key={machineId} id={FORM_ID} machineId={machineId} robot={robot} onSaved={onSaved} onSavingChange={setSaving} />
+        <div className="flex flex-col gap-4">
+          <RobotForm key={machineId} id={FORM_ID} machineId={machineId} robot={robot} onSaved={onSaved} onSavingChange={setSaving} />
+          {machine && <MachineVideoPanel type={machine.type} video={video} onChange={onVideoChange} />}
+        </div>
       )}
     </Sidebar>
   );

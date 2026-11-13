@@ -22,6 +22,10 @@ export interface DataTableProps<T> {
   pageSize?: number;
   emptyText?: ReactNode;
   caption?: string;
+  /** Tighter footer (smaller text and page buttons) for narrow spaces. */
+  compact?: boolean;
+  /** Makes rows clickable. */
+  onRowClick?: (row: T) => void;
   className?: string;
 }
 
@@ -34,6 +38,8 @@ export function DataTable<T>({
   pageSize,
   emptyText = "No data",
   caption,
+  compact,
+  onRowClick,
   className,
 }: DataTableProps<T>) {
   const [sort, setSort] = useState<{ key: string; dir: "asc" | "desc" } | null>(null);
@@ -111,10 +117,12 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
+              <>
+                {rows.map((row) => (
                 <tr
                   key={rowKey(row)}
-                  className="border-t border-line transition-colors duration-(--duration-fast) ease-ui hover:bg-surface-2"
+                  onClick={onRowClick && (() => onRowClick(row))}
+                  className={cn("border-t border-line transition-colors duration-(--duration-fast) ease-ui hover:bg-surface-2", onRowClick && "cursor-pointer")}
                 >
                   {columns.map((c) => (
                     <td
@@ -125,18 +133,31 @@ export function DataTable<T>({
                     </td>
                   ))}
                 </tr>
-              ))
+                ))}
+                {/* Short last page: invisible copies of a row fill it up to a full page, so the table
+                    (and the pagination under it) keep the same height on every page. */}
+                {pageSize !== undefined &&
+                  Array.from({ length: Math.max(0, pageSize - rows.length) }, (_, i) => (
+                    <tr key={`filler-${i}`} aria-hidden className="invisible border-t border-line">
+                      {columns.map((c) => (
+                        <td key={c.key} className={cn("px-4 py-3", alignClass[c.align ?? "left"], c.className)}>
+                          {c.cell(rows[0])}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </>
             )}
           </tbody>
         </table>
       </div>
       {pageSize && sorted.length > pageSize && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-4 py-3">
-          <span className="text-sm text-muted">
+        <div className={cn("flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-line", compact ? "px-3 py-2" : "px-4 py-3")}>
+          <span className={cn("whitespace-nowrap text-muted", compact ? "text-xs" : "text-sm")}>
             {(current - 1) * pageSize + 1}–{Math.min(current * pageSize, sorted.length)} of{" "}
             {sorted.length}
           </span>
-          <Pagination page={current} pageCount={pageCount} onPageChange={setPage} />
+          <Pagination page={current} pageCount={pageCount} onPageChange={setPage} size={compact ? "sm" : "md"} />
         </div>
       )}
     </div>

@@ -66,6 +66,54 @@ app/
 public/          Static assets
 ```
 
+## Database (MongoDB)
+
+Connection comes from `MONGODB_URI` / `MONGODB_DB` in `.env` (see `.env.example`). Check it with
+`GET /api/v1/health`.
+
+### `robots` collection — robot details
+
+One document per machine in the room. Shared type: `Robot` in `app/lib/robots.ts`.
+
+```jsonc
+{
+  "_id": { "$oid": "6af56028977f688977ade929" },
+  "machineID": "LTA-02",            // machine in the 3D room (ROOM_LAYOUT id); unique
+  "desc": "TEST",
+  "robotID": "1",                   // unique; referenced by robotStatus.robot_id
+  "robotName": "TEST",
+  "robotStatus": "FAIL",            // "FAIL" | "PASS" | "MAINTAIN" — shown as the badge over the machine
+  "runningNo": 1,
+  "updatedAt": { "$date": "2026-11-12T06:43:52.756Z" },
+  "viedoURL": ""                    // (sic) legacy field; videos are now uploaded per machine type
+}
+```
+
+API: `GET /api/v1/robots`, `PUT /api/v1/robots/:machineId` (create or update from the side bar).
+
+### `robotStatus` collection — log of each robot
+
+One document per inspection result (a log, newest last). Shared type: `app/lib/robotStatus.ts`.
+
+```jsonc
+{
+  "_id": { "$oid": "6af569c439203ae78e8ebf25" },
+  "robot_id": "1",                  // must match robots.robotID
+  "status": "FAIL",                 // "FAIL" | "PASS"
+  "failDetail": "missing part",     // why it failed; empty for a PASS
+  "datetime": { "$date": "2026-11-12T07:24:52.514Z" }
+}
+```
+
+API: `POST /api/v1/robot-status` with `{ robot_id, status, failDetail?, datetime? }` (datetime defaults to
+now). It answers 422 when `robot_id` matches no robot in `robots`.
+
+### Machine videos (GridFS bucket `machineVideos`)
+
+One video per machine **type**, shared by every machine of that type, stored in
+`machineVideos.files` / `machineVideos.chunks` (file metadata carries the machine type).
+API: `GET /api/v1/machine-videos`, and `GET` / `PUT` / `DELETE /api/v1/machine-videos/:type`.
+
 ## Planned direction
 
 The intended dashboard will bring together:
@@ -75,5 +123,8 @@ The intended dashboard will bring together:
 - Robot activity and product workflow status
 - Robot and workflow data received from MongoDB
 
-These are goals for future development; the current prototype uses local sample
-data and does not connect to a database.
+The room view already reads and writes robot records in MongoDB (see Database above); the
+remaining items are goals for future development.
+
+
+if 5 machine in section that have 5 or nor than five  is have log as fail the section will display orange section and have warning 

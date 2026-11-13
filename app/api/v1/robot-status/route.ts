@@ -1,5 +1,15 @@
 import { validateRobotStatusInput } from "@/app/lib/robotStatus";
-import { insertRobotStatus, UnknownRobotError } from "@/app/lib/robotStatus.server";
+import { insertRobotStatus, listRobotStatusLog, UnknownRobotError } from "@/app/lib/robotStatus.server";
+
+/** GET /api/v1/robot-status — latest inspection results, newest first. */
+export async function GET() {
+  try {
+    return Response.json({ logs: await listRobotStatusLog() });
+  } catch (err) {
+    console.error("GET /api/v1/robot-status failed", err);
+    return Response.json({ error: "Could not load the status log." }, { status: 500 });
+  }
+}
 
 /**
  * POST /api/v1/robot-status — record one inspection result.

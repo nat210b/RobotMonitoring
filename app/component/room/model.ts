@@ -10,7 +10,9 @@ import { createPulleyTurnaroundAssembly } from "../machine/PulleyTurnaroundAssem
 import { createUpgAssembly } from "../machine/UpgAssembly/model";
 import { ROBOT_CYCLE, type MachineParts } from "../machine/parts";
 
-import { ROOM, ROOM_LAYOUT, type MachinePlacement, type MachineType } from "./floorPlan";
+import { createAgvRoute } from "./agv";
+import { createFloorSign, createPillarSign } from "./floorSign";
+import { ROOM, ROOM_FLOOR_SIGNS, ROOM_LAYOUT, type MachinePlacement, type MachineType } from "./floorPlan";
 
 export { ROOM, ROOM_LAYOUT, ROOM_NAME, MACHINE_IDS } from "./floorPlan";
 export type { MachinePlacement, MachineType } from "./floorPlan";
@@ -36,7 +38,7 @@ const COLUMN_GAP = 0.15;
 /** Building columns (red in the drawing): one near the left wall, one free-standing. */
 export const PILLARS = [
   { x: -9.22, z: -1.54 },
-  { x: 2.02, z: -0.73 },
+  { x: 2.02, z: -1.54 }, // same z as the left column, so the two line up along x
 ];
 
 /**
@@ -179,9 +181,9 @@ function createRoomShell() {
   };
   wall(W + t, t, cx, z0 - t / 2);
 
-  // Front wall with the entrance and window openings (see FRONT_WALL_OPENINGS): full-height
-  // pieces between openings, a lintel over each, a sill under each window, and a glazed,
-  // framed pane in every window.
+  // Front wall: same translucent wall as the back wall (wallMat), with the entrance and the five
+  // windows (see FRONT_WALL_OPENINGS): full-height pieces between openings, a lintel over and a
+  // sill under each window, and a glazed, framed pane in every window.
   {
     const zf = z1 + t / 2;
     const wallBox = (xa: number, xb: number, ya: number, yb: number) => {
@@ -215,7 +217,7 @@ function createRoomShell() {
         g.add(pane);
         bar(o.width, f, o.x, o.sill + f / 2);
         bar(o.width, f, o.x, o.head - f / 2);
-        for (const x of [a + f / 2, b - f / 2]) bar(f, h, x, o.sill + h / 2); // one pane: no middle bar
+        for (const x of [a + f / 2, b - f / 2]) bar(f, h, x, o.sill + h / 2);
       }
       cursor = b;
     }
@@ -235,6 +237,13 @@ function createRoomShell() {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_SIZE, H + 0.6, PILLAR_SIZE), pillarMat);
     mesh.position.set(p.x, (H + 0.6) / 2, p.z);
     g.add(mesh);
+    // Team plate on the front (+z) and back (-z) face of the column.
+    for (const side of [1, -1]) {
+      const plate = createPillarSign("TH-CP1-Innovation Team", PILLAR_SIZE * 0.8, 2.2);
+      plate.position.set(p.x, 1.55, p.z + side * (PILLAR_SIZE / 2 + 0.004));
+      if (side === -1) plate.rotation.y = Math.PI;
+      g.add(plate);
+    }
   }
   const cp = COLUMN_PARTITION;
   g.add(
@@ -285,6 +294,9 @@ function animatedNodeIndices(parts: MachineParts) {
 export function createRoom(layout: MachinePlacement[] = ROOM_LAYOUT): MachineParts {
   const root = new THREE.Group();
   root.add(createRoomShell());
+  for (const sign of ROOM_FLOOR_SIGNS) root.add(createFloorSign(sign));
+  const agv = createAgvRoute();
+  root.add(agv.object);
   const prototypes = new Map<MachineType, { parts: MachineParts; moving: THREE.Object3D[]; indices: number[] }>();
   const instances: { proto: { parts: MachineParts; moving: THREE.Object3D[] }; moving: THREE.Object3D[]; delay: number }[] = [];
   layout.forEach((place, i) => {
@@ -309,6 +321,7 @@ export function createRoom(layout: MachinePlacement[] = ROOM_LAYOUT): MachinePar
   });
 
   const update = (t: number) => {
+    agv.update?.(t);
     for (const { proto, moving, delay } of instances) {
       if (!moving.length) continue;
       proto.parts.update?.(t + delay);
