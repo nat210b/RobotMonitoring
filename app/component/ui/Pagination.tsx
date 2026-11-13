@@ -6,6 +6,8 @@ export interface PaginationProps {
   onPageChange: (page: number) => void;
   /** pages shown on each side of current */
   siblings?: number;
+  /** "sm" makes the buttons smaller so a long row fits in a narrow space. */
+  size?: "md" | "sm";
   className?: string;
 }
 
@@ -27,7 +29,7 @@ export function getPages(page: number, count: number, siblings: number) {
 }
 
 const btn = cn(
-  "inline-flex h-9 min-w-9 items-center justify-center rounded-control px-2 text-sm",
+  "inline-flex items-center justify-center rounded-control",
   "disabled:cursor-not-allowed disabled:opacity-40",
   transition,
   focusRing,
@@ -38,15 +40,17 @@ export function Pagination({
   pageCount,
   onPageChange,
   siblings = 1,
+  size = "md",
   className,
 }: PaginationProps) {
+  const sizing = size === "sm" ? "h-7 min-w-7 px-1.5 text-xs" : "h-9 min-w-9 px-2 text-sm";
   if (pageCount <= 1) return null;
   const go = (p: number) => onPageChange(Math.min(Math.max(1, p), pageCount));
   return (
-    <nav aria-label="Pagination" className={cn("flex items-center gap-1", className)}>
+    <nav aria-label="Pagination" className={cn("flex flex-wrap items-center", size === "sm" ? "gap-0.5" : "gap-1", className)}>
       <button
         type="button"
-        className={cn(btn, "hover:bg-surface-3")}
+        className={cn(btn, sizing, "hover:bg-surface-3")}
         disabled={page <= 1}
         onClick={() => go(page - 1)}
         aria-label="Previous page"
@@ -66,6 +70,7 @@ export function Pagination({
             aria-current={p === page ? "page" : undefined}
             className={cn(
               btn,
+              sizing,
               p === page
                 ? "bg-brand font-semibold text-on-brand"
                 : "text-foreground hover:bg-surface-3",
@@ -79,7 +84,7 @@ export function Pagination({
       )}
       <button
         type="button"
-        className={cn(btn, "hover:bg-surface-3")}
+        className={cn(btn, sizing, "hover:bg-surface-3")}
         disabled={page >= pageCount}
         onClick={() => go(page + 1)}
         aria-label="Next page"

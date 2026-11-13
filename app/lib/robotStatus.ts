@@ -16,6 +16,15 @@ export type RobotStatusInput = {
   datetime: Date;
 };
 
+export type RobotStatusLogEntry = {
+  id: string;
+  robot_id: string;
+  status: RobotStatusInput["status"];
+  failDetail: string;
+  /** ISO timestamp the result was logged. */
+  datetime: string;
+};
+
 export const ROBOT_STATUS_LIMITS = { robot_id: 64, failDetail: 1000 } as const;
 
 export type RobotStatusInputErrors = Partial<Record<keyof RobotStatusInput, string>>;

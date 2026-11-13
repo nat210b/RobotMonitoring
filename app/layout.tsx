@@ -28,7 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="flex h-dvh flex-col overflow-hidden">
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
         <footer className="shrink-0 border-t border-line bg-surface px-4 py-2 text-center text-xs text-muted sm:px-8">
-          Powered by : TH-CP1-Innovation Team (Wannchol ,Nattaporn )
+          Powered by : TH-CP1-Innovation Team (Wannachol ,Nattaporn )
         </footer>
       </body>
     </html>

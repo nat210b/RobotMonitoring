@@ -11,16 +11,31 @@ const tones: Record<BadgeTone, string> = {
   info: "bg-info/15 text-info",
 };
 
+/** Opaque, high-contrast variant for sitting on busy backgrounds (e.g. over the 3D view). */
+const solidTones: Record<BadgeTone, string> = {
+  brand: "bg-brand text-white",
+  neutral: "bg-slate-700 text-white",
+  danger: "bg-danger text-white",
+  warning: "bg-warning text-black",
+  info: "bg-info text-white",
+};
+
 export function Badge({
   tone = "neutral",
+  solid = false,
+  color,
+  ink,
+  square = false,
   className,
+  style,
   ...rest
-}: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
+}: HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone; solid?: boolean; /** Custom background (overrides tone). */ color?: string; /** Custom text colour. */ ink?: string; /** Rectangular (slightly rounded corners) instead of a pill. */ square?: boolean }) {
   return (
     <span
+      style={color ? { backgroundColor: color, color: ink ?? "#fff", ...style } : style}
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-        tones[tone],
+        "inline-flex items-center", "px-2.5 py-0.5 text-xs font-medium",
+        solid ? cn(solidTones[tone], "border border-white/80 px-3 py-1 text-sm font-bold tracking-wide shadow-md") : tones[tone],
         className,
       )}
       {...rest}

@@ -126,6 +126,52 @@ body {
   }
 }
 
+/* ───────── Selector (segmented control with a sliding thumb) ───────── */
+.range-selector {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+.range-selector > button {
+  position: relative;
+  z-index: 1;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: calc(var(--radius-control) - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground);
+  background: transparent;
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease);
+}
+.range-selector > button:hover:not(.active) {
+  color: var(--brand);
+}
+.range-selector > button.active {
+  color: var(--on-brand);
+}
+.range-selector-thumb {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--brand);
+  /* No slide on the first placement; it glides once data-ready is set. */
+  transition: none;
+}
+.range-selector-thumb[data-ready="true"] {
+  transition:
+    transform var(--duration-slow) var(--ease),
+    width var(--duration-slow) var(--ease);
+}
+
 /* ───────── Motion: honour reduced-motion ───────── */
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -142,3 +188,5 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* selector styles above */
