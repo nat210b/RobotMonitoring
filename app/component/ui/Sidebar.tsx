@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode, Ref } from "react";
 import { cn, focusRing, transition } from "./cn";
 
 export interface SidebarProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
@@ -10,6 +10,7 @@ export interface SidebarProps extends Omit<HTMLAttributes<HTMLElement>, "title">
   footer?: ReactNode;
   /** Which edge of the layout the side bar sits on; sets the divider side. */
   side?: "left" | "right";
+  ref?: Ref<HTMLElement>;
 }
 
 /**
@@ -21,7 +22,7 @@ export function Sidebar({ title, description, actions, footer, side = "left", cl
   return (
     <aside
       className={cn(
-        "flex min-h-0 w-full shrink-0 flex-col border-line bg-surface text-foreground md:w-80",
+        "hud flex min-h-0 w-full shrink-0 flex-col border-line bg-surface text-foreground md:w-80",
         side === "left" ? "border-b md:border-r md:border-b-0" : "border-t md:border-l md:border-t-0",
         className,
       )}
@@ -30,7 +31,7 @@ export function Sidebar({ title, description, actions, footer, side = "left", cl
       {hasHeader && (
         <div className="flex items-start justify-between gap-3 border-b border-line px-4 py-3">
           <div className="min-w-0">
-            {title && <h2 className="truncate text-base font-semibold">{title}</h2>}
+            {title && <h2 className="hud-title truncate text-base font-semibold">{title}</h2>}
             {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
           </div>
           {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}

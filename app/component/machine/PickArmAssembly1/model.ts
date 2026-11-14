@@ -7,6 +7,7 @@ import {
   createMaterials,
   createPowerSupply,
   createScara,
+  createStackLight,
   cylinder,
   POWER_SUPPLY,
   type MachineParts,
@@ -48,6 +49,8 @@ export function createPickArmAssembly1(): MachineParts {
   const cell = createGlassCell(m, FRAME);
   add(cell.object);
   const { deckTop } = cell;
+  // Stack light on the back-right corner of the roof
+  add(createStackLight(m, FRAME.width / 2 - 0.06, FRAME.height, -FRAME.depth / 2 + 0.06));
 
   // ── Two SCARAs on pedestals, posed as drawn (base J1, elbow J2, quill) ───
   const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; motion: Partial<RobotMotion> }[] = [

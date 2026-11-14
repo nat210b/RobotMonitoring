@@ -23,7 +23,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-card border border-line bg-surface text-foreground",
+        "hud rounded-card border border-line bg-surface text-foreground",
         className,
       )}
       {...rest}
@@ -31,7 +31,7 @@ export function Card({
       {hasHeader && (
         <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
           <div className="min-w-0">
-            {title && <h3 className="text-base font-semibold">{title}</h3>}
+            {title && <h3 className="hud-title text-base font-semibold">{title}</h3>}
             {description && (
               <p className="mt-0.5 text-sm text-muted">{description}</p>
             )}

@@ -139,14 +139,4 @@ export const ROOM_SECTIONS: RoomSection[] = [
   { id: "pad", label: "Pad Elastomer", color: GREEN, ink: "#fff", machineIds: ids("PAD", 8) },
 ];
 
-/** A sign painted on the floor (see floorSign.ts). x / z is its centre (m); width runs along x, depth along z. */
-export type FloorSign = { text: string; /** Small line above the text, e.g. "Powered by". */ caption?: string; x: number; z: number; width: number; depth: number; color?: string; ink?: string };
-
-/**
- * Floor signs. The team sign is a large "Powered by" panel in the same row as the green Pick Arm section
- * (z 1.34–2.49), on the open floor to its left: free from the Narita section (ends x ≈ -7.2) to the Pick Arm
- * section (starts x ≈ -0.3), and clear of the yellow Pick Arm section behind it (ends z ≈ 0.2).
- */
-export const ROOM_FLOOR_SIGNS: FloorSign[] = [{ text: "TH-CP1-Innovation Team", x: -3.7, z: 1.93, width: 6, depth: 1.4 }];
-
 export const MACHINE_IDS = new Set(ROOM_LAYOUT.map((m) => m.id));

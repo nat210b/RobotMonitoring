@@ -3,33 +3,39 @@
 /* ───────── Design tokens ───────── */
 :root {
   /* brand */
-  --brand: #64a70b;
-  --brand-hover: #558f08;
-  --brand-active: #487a06;
-  --brand-soft: #eef6e1;
-  --on-brand: #ffffff;
+  --brand: #38bdf8;
+  --brand-hover: #0ea5e9;
+  --brand-active: #0284c7;
+  --brand-soft: #e3f4fd;
+  --on-brand: #062a40;
 
   /* surfaces */
   --background: #ffffff;
   --surface: #ffffff;
-  --surface-2: #f6f8f5;
-  --surface-3: #eef2ec;
+  --surface-2: #f5f8fd;
+  --surface-3: #ecf1fa;
 
   /* text */
   --foreground: #1e2a38;
   --muted: #78878b;
 
   /* lines */
-  --border: #dfe7dc;
+  --border: #b6dcf2;
 
   /* status */
   --danger: #d64545;
   --warning: #d98e04;
-  --info: #2f7fc1;
+  --info: #6366f1;
 
   /* shape */
-  --radius-card: 12px;
-  --radius-control: 8px;
+  /* square corners everywhere: cards, controls, badges, panels (circles such as dots and rings stay round) */
+  --radius-card: 0px;
+  --radius-control: 0px;
+
+  /* futuristic (HUD) look: all derived from the brand colour, so the theme colour is unchanged */
+  --hud-fill: color-mix(in srgb, var(--brand) 6%, var(--surface));
+  --hud-glow: color-mix(in srgb, var(--brand) 16%, transparent);
+  --hud-grid: color-mix(in srgb, var(--brand) 9%, transparent);
 
   /* motion */
   --ease: cubic-bezier(0.2, 0, 0, 1);
@@ -44,9 +50,10 @@
     --surface: #152130;
     --surface-2: #1b2a3b;
     --surface-3: #23344a;
-    --brand-soft: #1f3412;
+    --brand-soft: #0f3350;
     --foreground: #e8eef2;
-    --border: #2b3d52;
+    --border: #1f5c85;
+    --hud-glow: color-mix(in srgb, var(--brand) 30%, transparent);
   }
 }
 
@@ -55,9 +62,10 @@
   --surface: #152130;
   --surface-2: #1b2a3b;
   --surface-3: #23344a;
-  --brand-soft: #1f3412;
+  --brand-soft: #0f3350;
   --foreground: #e8eef2;
-  --border: #2b3d52;
+  --border: #1f5c85;
+  --hud-glow: color-mix(in srgb, var(--brand) 30%, transparent);
 }
 
 @theme inline {
@@ -84,7 +92,12 @@
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  /* faint technical grid behind everything; the 3D room's canvas is transparent so it shows round it */
+  background-image:
+    linear-gradient(var(--hud-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hud-grid) 1px, transparent 1px);
+  background-size: 44px 44px;
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
@@ -126,25 +139,150 @@ body {
   }
 }
 
+/* Show an element only in the light / dark theme (follows data-theme, else the system setting). */
+.theme-dark-only {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-light-only {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .theme-dark-only {
+    display: block;
+  }
+}
+:root[data-theme="dark"] .theme-light-only {
+  display: none;
+}
+:root[data-theme="dark"] .theme-dark-only {
+  display: block;
+}
+
+/* ───────── HUD look ─────────
+   .hud       panel: tinted glass fill, soft brand glow and corner brackets (top-left, bottom-right)
+   .hud-title spaced-out capitals for panel headings
+   .hud-cut   chamfered corners (small tags, badges)
+   .hud-bar   page header / footer strip with a glowing edge */
+@layer components {
+  .hud {
+    position: relative;
+  }
+}
+.hud {
+  background: linear-gradient(155deg, var(--hud-fill), var(--surface) 65%);
+  box-shadow:
+    0 0 22px var(--hud-glow),
+    inset 0 0 0 1px color-mix(in srgb, var(--hud-accent, var(--brand)) 10%, transparent);
+}
+/* Red neon variant of .hud (glow, tint, corner brackets), e.g. a failed inspection. */
+.hud-danger {
+  --hud-accent: var(--danger);
+  --hud-glow: color-mix(in srgb, var(--danger) 55%, transparent);
+  --hud-fill: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  box-shadow:
+    0 0 10px 1px color-mix(in srgb, var(--danger) 80%, transparent),
+    0 0 30px 4px color-mix(in srgb, var(--danger) 45%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.hud::before,
+.hud::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--hud-accent, var(--brand));
+  pointer-events: none;
+}
+.hud::before {
+  top: 0;
+  left: 0;
+  border-right: 0;
+  border-bottom: 0;
+}
+.hud::after {
+  right: 0;
+  bottom: 0;
+  border-top: 0;
+  border-left: 0;
+}
+/* Glass-panel variant of .hud: square corners, hairline white edge, translucent blue-violet fill that
+   brightens toward the bottom-right, and bright specular glints in the top-left / bottom-right corners
+   (replacing the .hud brackets). Keeps the .hud outer glow. Place after .hud / .hud-danger. */
+.hud-glass {
+  --neon: var(--hud-accent, #38bdf8);
+  --chamfer: 14px;
+  clip-path: polygon(
+    var(--chamfer) 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer),
+    100% calc(100% - var(--chamfer)), calc(100% - var(--chamfer)) 100%,
+    var(--chamfer) 100%, 0 calc(100% - var(--chamfer)), 0 var(--chamfer)
+  );
+  border-color: transparent;
+  box-shadow: inset 0 0 22px color-mix(in srgb, var(--neon) 22%, transparent);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--neon) 14%, transparent), color-mix(in srgb, var(--neon) 5%, transparent)),
+    color-mix(in srgb, var(--surface) 55%, transparent);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.hud-glass[data-selected] {
+  box-shadow: inset 0 0 30px color-mix(in srgb, var(--neon) 45%, transparent);
+}
+/* Neon outline that follows the chamfered shape (a ring cut out with a mask). */
+.hud-glass::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  padding: 1.5px;
+  background: var(--neon);
+  clip-path: inherit;
+  -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+/* Small accent bars, as in the reference frames. */
+.hud-glass::after {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  background:
+    linear-gradient(var(--neon), var(--neon)) top 0 right 22px / 30px 3px no-repeat,
+    linear-gradient(var(--neon), var(--neon)) bottom 0 left 22px / 22px 3px no-repeat;
+}
+.hud-title {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+.hud-cut {
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+.hud-bar {
+  background: linear-gradient(90deg, var(--hud-fill), var(--surface) 35%, var(--surface) 65%, var(--hud-fill));
+  box-shadow: 0 0 18px var(--hud-glow);
+}
+
 /* ───────── Selector (segmented control with a sliding thumb) ───────── */
 .range-selector {
   position: relative;
   display: inline-flex;
   align-items: center;
   padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+  border: 1px solid var(--brand);
+  border-radius: 0;
+  background: linear-gradient(155deg, var(--hud-fill), var(--surface));
+  box-shadow: 0 0 14px var(--hud-glow);
 }
 .range-selector > button {
   position: relative;
   z-index: 1;
   height: 28px;
   padding: 0 14px;
-  border-radius: calc(var(--radius-control) - 2px);
-  font-size: 0.875rem;
-  font-weight: 500;
+  border-radius: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--foreground);
   background: transparent;
   cursor: pointer;
@@ -161,8 +299,10 @@ body {
   top: 2px;
   bottom: 2px;
   left: 0;
-  border-radius: calc(var(--radius-control) - 2px);
+  border-radius: 0;
   background: var(--brand);
+  box-shadow: 0 0 12px var(--hud-glow);
+  clip-path: polygon(0 0, calc(100% - 5px) 0, 100% 5px, 100% 100%, 5px 100%, 0 calc(100% - 5px));
   /* No slide on the first placement; it glides once data-ready is set. */
   transition: none;
 }
@@ -190,3 +330,74 @@ body {
 }
 
 /* selector styles above */
+
+/* square corners */
+
+
+
+
+
+
+/* Neon glow for StatusIcon (ui/StatusIcon.tsx): pulses softly, steady for reduced motion. */
+@keyframes status-icon-pulse {
+  0%, 100% { filter: drop-shadow(0 0 3px currentColor); }
+  50% { filter: drop-shadow(0 0 9px currentColor); }
+}
+.status-icon-pulse {
+  filter: drop-shadow(0 0 5px currentColor);
+  animation: status-icon-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-icon-pulse { animation: none; }
+}
+
+/* ───────── Opening splash follows the app theme ─────────
+   Overrides the colours of the vendored splash kit (public/cp-ai-signature/dist/cpai-splash.css) with the
+   theme tokens, so it matches light / dark and the brand colour. Higher specificity than the kit's rules. */
+body .cpai-splash-screen {
+  --cpai-cyan: var(--brand);
+  --cpai-text: var(--foreground);
+  background: radial-gradient(ellipse 55% 45% at 50% 41%, color-mix(in srgb, var(--brand) 14%, var(--surface)) 0%, var(--background) 62%, var(--background) 100%);
+}
+body .cpai-splash-field__grid {
+  background-image:
+    linear-gradient(var(--brand) 1px, transparent 1px),
+    linear-gradient(90deg, var(--brand) 1px, transparent 1px);
+  opacity: 0.18;
+}
+body .cpai-splash-field__arc {
+  border-color: color-mix(in srgb, var(--brand) 48%, transparent);
+  box-shadow: 0 -1px 16px color-mix(in srgb, var(--brand) 14%, transparent);
+}
+body .cpai-splash-emblem-halo {
+  background: radial-gradient(circle, color-mix(in srgb, var(--brand) 26%, transparent), transparent 66%);
+}
+body .cpai-splash-emblem {
+  /* thin dark edge so the logo's white half stays visible on a light background */
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--brand-active) 85%, black)) drop-shadow(0 0 14px color-mix(in srgb, var(--brand) 30%, transparent));
+}
+body .cpai-splash-tagline,
+body .cpai-splash-status {
+  color: var(--muted);
+}
+body .cpai-splash-footnote {
+  color: color-mix(in srgb, var(--muted) 75%, transparent);
+}
+body .cpai-splash-progress__track {
+  background: var(--surface-3);
+  border-color: color-mix(in srgb, var(--brand) 25%, transparent);
+}
+body .cpai-splash-progress__bar {
+  background: linear-gradient(90deg, var(--brand-active), var(--brand), color-mix(in srgb, var(--brand) 55%, white));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--brand) 70%, transparent);
+}
+body .cpai-splash-skip {
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  border-color: color-mix(in srgb, var(--brand) 40%, transparent);
+  color: var(--foreground);
+}
+body .cpai-splash-skip:hover {
+  background: var(--brand-soft);
+  color: var(--foreground);
+  border-color: var(--brand);
+}

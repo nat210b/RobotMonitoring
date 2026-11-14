@@ -71,7 +71,7 @@ export function MachineVideoPanel({ type, video, onChange }: MachineVideoPanelPr
       {video ? (
         <RobotVideo key={video.updatedAt} url={machineVideoSrc(video)} title={`${type} working`} />
       ) : (
-        <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted">No video uploaded for this machine type yet.</p>
+        <p className="border border-dashed border-border p-4 text-sm text-muted">No video uploaded for this machine type yet.</p>
       )}
       <input
         ref={input}

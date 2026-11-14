@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="640" viewBox="0 0 680 640" role="img">
+<title>CP monogram (light theme)</title>
+<defs>
+ <!-- Navy "C": lit from the top-left, deep at the bottom-right -->
+ <linearGradient id="navy" x1="10%" y1="0%" x2="90%" y2="100%"><stop offset="0%" stop-color="#3F5A72"/><stop offset="55%" stop-color="#1B3248"/><stop offset="100%" stop-color="#0E2133"/></linearGradient>
+ <!-- Blue "P": darker top face, brighter front and right faces -->
+ <linearGradient id="blueTop" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#0A8FC4"/><stop offset="55%" stop-color="#14B4E8"/><stop offset="100%" stop-color="#5CD3F5"/></linearGradient>
+ <linearGradient id="blueFront" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#12AEE0"/><stop offset="60%" stop-color="#22C4F2"/><stop offset="100%" stop-color="#48D8F8"/></linearGradient>
+ <linearGradient id="blueRight" x1="0%" y1="30%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4FD3F6"/><stop offset="100%" stop-color="#16AEDD"/></linearGradient>
+</defs>
+<g aria-label="CP geometric monogram">
+  <path d="M337 8 L511 110 L412 166 L337 117 L127 239 L127 413 L223 468 L223 575 L26 468 L26 185 Z" fill="url(#navy)"/>
+  <!-- small lower facet of the C, a touch lighter -->
+  <path d="M127 412 L223 468 L223 575 L127 520 Z" fill="#4C7A98" opacity="0.55"/>
+
+  <path d="M241 275 L521 113 L647 188 L551 243 L521 225 L340 334 Z" fill="url(#blueTop)"/>
+  <path d="M241 275 L340 334 L340 562 L241 611 Z" fill="url(#blueFront)"/>
+  <path d="M647 188 L647 362 L400 506 L400 390 L551 305 L551 243 Z" fill="url(#blueRight)"/>
+  <path d="M521 113 L647 188 L551 243 L521 225 L551 207 Z" fill="#9BE6FB" opacity="0.28"/>
+</g>
+</svg>

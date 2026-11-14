@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Button, OptionCard, Sidebar } from "../ui";
+import { Button, OptionCard, Sidebar, StatusIcon, useDismiss } from "../ui";
 import type { Settings } from "./useSettings";
 
 const icon = (d: ReactNode) => (
@@ -35,20 +35,25 @@ const TagIcon = () =>
   );
 const PulseIcon = () => icon(<path d="M22 12h-4l-3 9L9 3l-3 9H2" />);
 
-const Heading = ({ title }: { title: string }) => <h3 className="mb-3 text-base font-semibold">{title}</h3>;
+const Heading = ({ title }: { title: string }) => <h3 className="hud-title mb-3 text-sm font-semibold">{title}</h3>;
 
-const bar = "h-1.5 rounded-full";
+const bar = "h-1.5";
 
-/** Settings drawer: room-view toggles and theme, laid out as grids of option cards. */
+/**
+ * Settings drawer: room-view toggles and theme, laid out as grids of option cards. Closes when the user
+ * clicks anywhere outside it (the room, the log, …) or presses Escape.
+ */
 export function SettingsPanel({ settings, onChange, onClose, className }: { settings: Settings; onChange: (patch: Partial<Settings>) => void; onClose: () => void; className?: string }) {
+  const ref = useDismiss<HTMLElement>(onClose);
   return (
     <Sidebar
+      ref={ref}
       side="right"
       className={className}
       title={
         <span className="block">
           <span className="block text-xs font-normal text-muted">Preferences</span>
-          <span className="block text-xl font-medium">Settings</span>
+          <span className="block text-lg font-semibold">Settings</span>
         </span>
       }
       actions={
@@ -59,27 +64,34 @@ export function SettingsPanel({ settings, onChange, onClose, className }: { sett
     >
       <section>
         <Heading title="Room view" />
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <OptionCard
             label="Sections"
             icon={<LayersIcon />}
             selected={settings.showHighlight}
             onClick={() => onChange({ showHighlight: !settings.showHighlight })}
-            preview={<span className="h-8 w-14 rounded border border-dashed border-brand bg-brand/25" />}
+            preview={<span className="h-8 w-14 border border-dashed border-brand bg-brand/25" />}
           />
           <OptionCard
             label="Names"
             icon={<TagIcon />}
             selected={settings.showSectionNames}
             onClick={() => onChange({ showSectionNames: !settings.showSectionNames })}
-            preview={<span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">UPG</span>}
+            preview={<span className="bg-brand px-2 py-0.5 text-[10px] font-bold text-white">UPG</span>}
+          />
+          <OptionCard
+            label="Power"
+            icon={<PowerIcon />}
+            selected={settings.showPowerIcons}
+            onClick={() => onChange({ showPowerIcons: !settings.showPowerIcons })}
+            preview={<StatusIcon kind="power-off" className="size-8" />}
           />
           <OptionCard
             label="Status"
             icon={<PulseIcon />}
             selected={settings.showMachineStatus}
             onClick={() => onChange({ showMachineStatus: !settings.showMachineStatus })}
-            preview={<span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">PASS</span>}
+            preview={<span className="bg-brand px-2 py-0.5 text-[10px] font-bold text-white">PASS</span>}
           />
         </div>
       </section>
@@ -118,3 +130,5 @@ export function SettingsPanel({ settings, onChange, onClose, className }: { sett
     </Sidebar>
   );
 }
+
+const PowerIcon = () => icon(<><path d="M12 2v10" /><path d="M18.4 6.6a9 9 0 1 1-12.8 0" /></>);

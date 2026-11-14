@@ -1,16 +1,17 @@
 "use client";
 
 import { useMemo } from "react";
+import type { Robot } from "@/app/lib/robots";
 import { Badge, BarChart, DataTable, DonutChart, cn, type Column } from "../ui";
 import { ROOM_LAYOUT, ROOM_SECTIONS } from "./floorPlan";
-import { MOCK_MACHINE_POWER, type MachinePower } from "./machineStatus.mock";
 
-type Row = { id: string; section: string; power: MachinePower };
+type MachinePower = "ON" | "OFF";
+type Row = { id: string; /** Robot name, or the machine id when it has none. */ name: string; section: string; power: MachinePower };
 
 const SECTION_OF = new Map(ROOM_SECTIONS.flatMap((s) => s.machineIds.map((id) => [id, s.label] as const)));
 
 const COLUMNS: Column<Row>[] = [
-  { key: "id", header: "Machine", cell: (r) => <span className="font-medium">{r.id}</span>, sortValue: (r) => r.id, className: "!px-3 !py-1.5 !text-xs" },
+  { key: "id", header: "Machine", cell: (r) => <span className="font-medium">{r.name}</span>, sortValue: (r) => r.name, className: "!px-3 !py-1.5 !text-xs" },
   {
     key: "section",
     header: "Section",
@@ -34,27 +35,29 @@ const COLUMNS: Column<Row>[] = [
 
 /**
  * Left-hand overview: ring chart of how many machines are ON, a bar per section, and a table of
- * every machine's ON / OFF state. The states are mock data (see machineStatus.mock.ts).
+ * every machine's ON / OFF state, taken from each robot's robotPower (no robot or no value counts as OFF).
  */
-export function MachineOverview({ onSelect, className }: { onSelect: (machineId: string) => void; className?: string }) {
+export function MachineOverview({ onSelect, power, robots, className }: { onSelect: (machineId: string) => void; power: Record<string, boolean | undefined>; /** Robot records keyed by machine id. */ robots: Map<string, Robot>; className?: string }) {
   const { rows, on, sections } = useMemo(() => {
-    const rows: Row[] = ROOM_LAYOUT.map((m) => ({ id: m.id, section: SECTION_OF.get(m.id) ?? "—", power: MOCK_MACHINE_POWER.get(m.id) ?? "OFF" }));
+    // Default order: machines that have a robot record first (ON before OFF), machines with no value last.
+    // Array.sort is stable, so each group keeps the room layout order; header clicks still re-sort.
+    const rank = (id: string) => (!robots.has(id) ? 2 : power[id] === true ? 0 : 1);
+    const rows = ROOM_LAYOUT.map((m): Row => ({ id: m.id, name: robots.get(m.id)?.robotName?.trim() || m.id, section: SECTION_OF.get(m.id) ?? "—", power: power[m.id] === true ? "ON" : "OFF" })).sort((a, b) => rank(a.id) - rank(b.id));
     const sections = ROOM_SECTIONS.map((s) => ({
       id: s.id,
       label: s.label,
       color: s.color,
       total: s.machineIds.length,
-      on: s.machineIds.filter((id) => MOCK_MACHINE_POWER.get(id) === "ON").length,
+      on: s.machineIds.filter((id) => power[id] === true).length,
     }));
     return { rows, on: rows.filter((r) => r.power === "ON").length, sections };
-  }, []);
+  }, [power, robots]);
   const off = rows.length - on;
 
   return (
-    <aside className={cn("flex min-h-0 flex-col gap-2.5 overflow-y-auto rounded-card border border-line bg-surface p-4 text-foreground shadow-lg", className)}>
+    <aside className={cn("hud flex min-h-0 flex-col gap-2.5 overflow-y-auto rounded-card border border-line bg-surface p-4 text-foreground", className)}>
       <div>
-        <p className="text-xs text-muted">Overview</p>
-        <h2 className="text-xl font-medium">Machine status</h2>
+        <h2 className="hud-title text-lg font-semibold">Machine status</h2>
       </div>
 
       <div className="flex items-center gap-4">
@@ -86,7 +89,7 @@ export function MachineOverview({ onSelect, className }: { onSelect: (machineId:
       <BarChart
         labels={sections.map((s) => `${s.label}  ${s.on}/${s.total}`)}
         series={[
-          { label: "ON", data: sections.map((s) => s.on), color: sections.map((s) => s.color) },
+          { label: "ON", data: sections.map((s) => s.on), color: "var(--brand)" },
           { label: "OFF", data: sections.map((s) => s.total - s.on), color: "var(--surface-3)" },
         ]}
         fill

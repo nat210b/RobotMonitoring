@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img">
+<defs>
+ <linearGradient id="silver" x1="10%" y1="0%" x2="90%" y2="100%"><stop offset="0%" stop-color="#FFFFFF"/><stop offset="55%" stop-color="#EDF5FC"/><stop offset="100%" stop-color="#85BCD9"/></linearGradient>
+ <linearGradient id="silverLight" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#425E75"/><stop offset="100%" stop-color="#102538"/></linearGradient>
+ <linearGradient id="cyanTop" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#00B0E6"/><stop offset="55%" stop-color="#00D8FF"/><stop offset="100%" stop-color="#7CF8FF"/></linearGradient>
+ <linearGradient id="cyanFront" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#00D1EF"/><stop offset="60%" stop-color="#12ECFF"/><stop offset="100%" stop-color="#42FFFF"/></linearGradient>
+ <linearGradient id="cyanRight" x1="0%" y1="30%" x2="100%" y2="100%"><stop offset="0%" stop-color="#54F7FF"/><stop offset="100%" stop-color="#00C9E9"/></linearGradient>
+ <linearGradient id="badgeBG" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#102B40"/><stop offset="100%" stop-color="#081522"/></linearGradient>
+ <filter id="cyanGlow" x="-40%" y="-50%" width="180%" height="200%"><feGaussianBlur stdDeviation="4"/></filter>
+</defs>
+<rect width="64" height="64" rx="14" fill="#0B1B2B"/><g transform="translate(5 6) scale(.08)"><g aria-label="CP geometric monogram">
+  <path d="M337 8 L511 110 L412 166 L337 117 L127 239 L127 413 L223 468 L223 575 L26 468 L26 185 Z" fill="url(#silver)"/>
+  <path d="M127 412 L223 468 L223 575 L127 520 Z" fill="#209EC7" opacity="0.24"/>
+  
+  <path d="M241 275 L521 113 L647 188 L551 243 L521 225 L340 334 Z" fill="url(#cyanTop)"/>
+  <path d="M241 275 L340 334 L340 562 L241 611 Z" fill="url(#cyanFront)"/>
+  <path d="M647 188 L647 362 L400 506 L400 390 L551 305 L551 243 Z" fill="url(#cyanRight)"/>
+  <path d="M521 113 L647 188 L551 243 L521 225 L551 207 Z" fill="#79FAFF" opacity="0.20"/>
+</g></g>
+</svg>

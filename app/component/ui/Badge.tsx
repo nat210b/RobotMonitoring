@@ -34,7 +34,7 @@ export function Badge({
     <span
       style={color ? { backgroundColor: color, color: ink ?? "#fff", ...style } : style}
       className={cn(
-        "inline-flex items-center", "px-2.5 py-0.5 text-xs font-medium",
+        "hud-cut inline-flex items-center", "px-2.5 py-0.5 text-xs font-medium",
         solid ? cn(solidTones[tone], "border border-white/80 px-3 py-1 text-sm font-bold tracking-wide shadow-md") : tones[tone],
         className,
       )}

@@ -7,6 +7,7 @@ import {
   createMaterials,
   createRotaryTable,
   createScara,
+  createStackLight,
   cylinder,
   vents,
   type MachineParts,
@@ -211,6 +212,8 @@ export function createLeftTransmissionAssembly(): MachineParts {
     const magazine = createTrayMagazine(m, w, magazineDepth, magazineHeight);
     magazine.position.set(cx, 0, unitZ1 - magazineDepth / 2);
     root.add(magazine);
+    // Stack light on top of the first (left) tray magazine
+    if (kind === "parts") root.add(createStackLight(m, x0 + 0.07, magazineHeight, unitZ1 - magazineDepth + 0.07));
   }
 
   const update = (t: number) => movers.forEach((part) => part.update(t));

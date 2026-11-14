@@ -6,7 +6,10 @@ import {
   createCaster,
   createMaterials,
   createScara,
+  createStackLight,
   cylinder,
+  pickIndexAngle,
+  ROBOT_CYCLE,
   panelXY,
   panelZY,
   type MachineParts,
@@ -51,9 +54,11 @@ function plate(m: Materials, mat: THREE.Material, a: [number, number], b: [numbe
 }
 
 /** Grey rotary table with eight green nests. */
-function createNestTable(m: Materials, radius: number) {
+function createNestTable(m: Materials, radius: number, pickStarts: readonly number[]) {
   const g = new THREE.Group();
   g.add(cylinder(radius * 0.3, radius * 0.32, 0.05, m.robotGrey, 0, 0.025, 0));
+  const rotor = new THREE.Group(); // the nests turn; the plain round plate under them looks the same turning or not, so it stays put
+  g.add(rotor);
   g.add(cylinder(radius, radius, 0.015, m.sheet, 0, 0.0575, 0, 64));
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
@@ -63,9 +68,15 @@ function createNestTable(m: Materials, radius: number) {
     nest.add(box(0.06, 0.02, 0.07, m.steel, 0, 0.01, 0));
     nest.add(box(0.045, 0.02, 0.05, m.feederGreen, 0, 0.03, 0));
     nest.add(box(0.012, 0.012, 0.03, m.accentBlue, 0.012, 0.045, 0));
-    g.add(nest);
+    rotor.add(nest);
   }
-  return g;
+  // Turns one nest right after each SCARA's pick (pickStarts: their cycle starts)
+  rotor.userData.indexTable = true; // tooling finds the turning part by this
+  const update = (t: number) => {
+    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 0.6, step: Math.PI / 4 });
+  };
+  update(0);
+  return { object: g, update };
 }
 
 /** Open-top tub (bin) narrowing toward the bottom, with a label plate on the front. */
@@ -172,9 +183,12 @@ export function createUpgAssembly(): MachineParts {
 
   // ── Rotary table (centre px 707, 617, r 172 px) ──────────────────────────
   const dial = fromTop(707, 617);
-  const table = createNestTable(m, 172 * K);
-  table.position.set(dial.x, T, dial.z);
-  add(table);
+  // The table turns right after each SCARA's pick, in step with the robots (filled in below)
+  const tablePickStarts: number[] = [];
+  const table = createNestTable(m, 172 * K, tablePickStarts);
+  table.object.position.set(dial.x, T, dial.z);
+  add(table.object);
+  movers.push(table);
 
   // ── Three SCARAs, posed as drawn (base J1, elbow J2, quill) ──────────────
   const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "-x" | "-z" | "+x"; motion: Partial<RobotMotion> }[] = [
@@ -204,6 +218,7 @@ export function createUpgAssembly(): MachineParts {
     robot.object.position.set(b.x, T, b.z);
     add(robot.object);
     movers.push(robot);
+    tablePickStarts.push((i / scaras.length) * ROBOT_CYCLE);
   });
 
   // ── Bowl feeders ─────────────────────────────────────────────────────────
@@ -246,6 +261,9 @@ export function createUpgAssembly(): MachineParts {
   }
   const hole = fromTop(898, 720);
   add(cylinder(0.045, 0.045, 0.004, m.dark, hole.x, T + 0.002, hole.z, 24)); // part drop hole
+
+  // Stack light on the back-right corner of the table, on a short pole
+  add(createStackLight(m, x1 - 0.06, T, z0 + 0.06, 0.3));
 
   const update = (t: number) => movers.forEach((part) => part.update(t));
   update(0);

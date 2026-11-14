@@ -16,7 +16,7 @@ function youtubeEmbed(url: string): string | null {
 export function RobotVideo({ url, title }: { url: string; title: string }) {
   const embed = youtubeEmbed(url);
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-black">
+    <div className="overflow-hidden border border-border bg-black">
       {embed ? (
         <iframe src={embed} title={title} className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture" allowFullScreen />
       ) : (

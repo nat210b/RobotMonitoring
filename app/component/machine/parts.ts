@@ -28,6 +28,8 @@ export type RobotMotion = {
   offset: number;
   /** How far the tool lowers at each end: metres of quill stroke (SCARA) or radians of elbow (6-axis). */
   dip: number;
+  /** Stroke at the place end, when it differs from the pick end (`dip`). Defaults to `dip`. */
+  dipPlace?: number;
   /** How far the tool pulls up while travelling: metres of quill (SCARA) or radians of shoulder (6-axis). */
   lift: number;
 };
@@ -37,18 +39,19 @@ export type RobotMotion = {
  * and back, `dip` rises 0 → 1 → 0 while it lowers its tool at either end. Before its first
  * cycle starts (`offset`) the robot waits in the drawn pose, so t = 0 is always the drawn pose.
  *
- *   0.00–0.12 pick (dip) · 0.12–0.42 travel · 0.42–0.54 place (dip) · 0.54–0.84 return · rest
+ *   0.00–0.12 pick (dip) · 0.10–0.44 travel · 0.42–0.54 place (dip) · 0.52–0.84 return · rest
  */
 export function workCycle(t: number, offset = 0) {
   const start = offset * ROBOT_CYCLE;
-  if (t < start) return { move: 0, dip: 0 };
+  if (t < start) return { move: 0, dip: 0, carrying: false };
   const u = ((t - start) / ROBOT_CYCLE) % 1;
   const f = (a: number, b: number) => (u - a) / (b - a);
-  if (u < 0.12) return { move: 0, dip: Math.sin(Math.PI * f(0, 0.12)) };
-  if (u < 0.42) return { move: ease(f(0.12, 0.42)), dip: 0 };
-  if (u < 0.54) return { move: 1, dip: Math.sin(Math.PI * f(0.42, 0.54)) };
-  if (u < 0.84) return { move: 1 - ease(f(0.54, 0.84)), dip: 0 };
-  return { move: 0, dip: 0 };
+  // The stroke and the travel overlap a little (the tool is already rising as the arm starts to move, and
+  // is already coming down as it arrives), so the motion flows instead of stopping between phases.
+  const dip = u < 0.12 ? strokeProfile(f(0, 0.12)) : u >= 0.42 && u < 0.54 ? strokeProfile(f(0.42, 0.54)) : 0;
+  const move = u < 0.1 ? 0 : u < 0.44 ? ease(f(0.1, 0.44)) : u < 0.52 ? 1 : u < 0.84 ? 1 - ease(f(0.52, 0.84)) : 0;
+  // carrying: from the bottom of the pick stroke to the bottom of the place stroke
+  return { move, dip, carrying: u >= 0.06 && u < 0.48 };
 }
 
 /** Travel lift profile for a cycle position `move`: up early in the move, held, down at the end. */
@@ -140,7 +143,33 @@ export function panelZY(z0: number, z1: number, y0: number, y1: number, x: numbe
 }
 
 function ease(f: number) {
-  return f * f * (3 - 2 * f);
+  return f * f * f * (f * (f * 6 - 15) + 10); // smootherstep: eases in and out with no jerk at either end
+}
+
+/** Seconds into a robot's cycle when its pick stroke is done and the tool is back up (see workCycle). */
+export const PICK_DONE = 0.12 * ROBOT_CYCLE;
+
+/**
+ * Angle of an indexing table at time `t` that turns one `step` (radians) right after each pick: every
+ * robot whose cycle starts at one of `starts` (seconds) triggers a turn when its pick stroke is done,
+ * taking `move` seconds (eased). Before a robot's first cycle it triggers nothing.
+ */
+export function pickIndexAngle(t: number, { starts, move, step }: { starts: readonly number[]; move: number; step: number }) {
+  let turns = 0;
+  for (const start of starts) {
+    const d = t - (start + PICK_DONE);
+    if (d < 0) continue;
+    const done = Math.floor(d / ROBOT_CYCLE);
+    turns += done + ease(Math.min((d - done * ROBOT_CYCLE) / move, 1));
+  }
+  return turns * step;
+}
+
+/** Tool stroke over one pick/place (f: 0 → 1): lowers, holds briefly at the bottom (grip / release), lifts. */
+function strokeProfile(f: number) {
+  if (f < 0.4) return ease(f / 0.4);
+  if (f < 0.6) return 1;
+  return ease((1 - f) / 0.4);
 }
 
 type SixAxisOptions = Partial<RobotMotion> & {
@@ -150,6 +179,12 @@ type SixAxisOptions = Partial<RobotMotion> & {
   wrist?: number;
   /** Arm body material (defaults to robot white). */
   body?: THREE.Material;
+  /** End effector: the red two-finger gripper (default), or the PCB tool: a plain wrist flange that holds a green PCB board directly under it between pick and place. */
+  tool?: "gripper" | "pcb";
+  /** PCB tool only: wrist centre to the underside of the held board (unscaled). The round flange fills the gap. */
+  toolDrop?: number;
+  /** Add the bracket bolted under the forearm (Epson arms in the Photo Tray drawings): an A-frame, a long bar ending in a round disc, a slotted plate with a two-prong fork, and a thin rod on top. */
+  forearmBracket?: boolean;
   /** Back-of-base detail: green cable cover (Delta) or grey connector panel (Epson). */
   baseCover?: "cable" | "connector";
 };
@@ -195,10 +230,42 @@ function createConnectorPanel(m: Materials) {
   return g;
 }
 
+/**
+ * Bracket bolted under the forearm of the Photo Tray's Epson arms (front view of the drawing), in the
+ * forearm's frame (x along the forearm from the elbow, y up, forearm box spans y ±0.034, z -0.054…0.014).
+ * An A-frame hangs from the forearm's near side; a long flat bar runs back from its foot to a round disc;
+ * a slotted plate and an L-strip with two prongs hang under the foot; a thin rod sticks up off the forearm's far side.
+ */
+function createForearmBracket(m: Materials) {
+  const g = new THREE.Group();
+  const z = 0.022; // just outside the forearm's near face
+  const strut = (ax: number, ay: number, bx: number, by: number, t: number, depth: number, mat: THREE.Material) => {
+    const bar = box(Math.hypot(bx - ax, by - ay), t, depth, mat, (ax + bx) / 2, (ay + by) / 2, z);
+    bar.rotation.z = Math.atan2(by - ay, bx - ax);
+    return bar;
+  };
+  g.add(box(0.045, 0.03, 0.006, m.blackSteel, 0.08, -0.02, 0.017)); // mounting plate on the forearm
+  g.add(strut(0.095, -0.03, 0.095, -0.128, 0.008, 0.008, m.blackSteel)); // A-frame upright
+  g.add(strut(0.058, -0.03, 0.095, -0.1, 0.006, 0.006, m.blackSteel)); // A-frame diagonal
+  g.add(strut(0.07, -0.075, 0.095, -0.075, 0.005, 0.005, m.blackSteel)); // A-frame cross piece
+  g.add(box(0.145, 0.006, 0.02, m.blackSteel, 0.028, -0.128, z)); // long bar running back
+  g.add(cylinder(0.034, 0.034, 0.018, m.panelGrey, -0.046, -0.14, z, 32)); // round disc at its end
+  // Slotted plate and L-strip with two prongs under the A-frame's foot
+  g.add(box(0.045, 0.07, 0.004, m.blackSteel, 0.074, -0.168, z + 0.008));
+  for (const sx of [0.064, 0.084]) g.add(box(0.004, 0.04, 0.002, m.dark, sx, -0.165, z + 0.011)); // slots
+  g.add(box(0.006, 0.08, 0.01, m.blackSteel, 0.108, -0.165, z + 0.008));
+  for (const py of [-0.15, -0.2]) g.add(box(0.04, 0.006, 0.01, m.blackSteel, 0.128, py, z + 0.008));
+  // Thin rod off the top of the forearm, on the far side from the rest of the bracket
+  const rod = strut(0.2, 0.034, 0.18, 0.09, 0.006, 0.006, m.blackSteel);
+  rod.position.z = -0.062; // just outside the forearm's far face (z -0.054)
+  g.add(rod);
+  return g;
+}
+
 /** 6-axis articulated arm (Delta DRV style). Forward reach is local +x. */
 export function createSixAxisRobot(
   m: Materials,
-  { shoulder = -0.3, elbow = -0.55, wrist = -0.9, body, baseCover = "cable", swing = [0.5], offset = 0, dip = 0.12, lift = 0.1 }: SixAxisOptions = {},
+  { shoulder = -0.3, elbow = -0.55, wrist = -0.9, body, baseCover = "cable", tool = "gripper", toolDrop = 0.145, forearmBracket = false, swing = [0.5], offset = 0, dip = 0.12, lift = 0.1 }: SixAxisOptions = {},
 ) {
   const root = new THREE.Group();
   const motion: RobotMotion = { swing, offset, dip, lift };
@@ -231,6 +298,7 @@ export function createSixAxisRobot(
   j3.add(elbowCap);
   j3.add(box(0.28, 0.068, 0.068, white, 0.14, 0, -0.02));
   j3.add(box(0.06, 0.002, 0.03, m.accentBlue, 0.15, 0.035, -0.02)); // logo plate
+  if (forearmBracket) j3.add(createForearmBracket(m));
 
   const j5 = new THREE.Group();
   j5.position.set(0.29, 0, -0.02);
@@ -238,14 +306,30 @@ export function createSixAxisRobot(
   const wristCap = cylinder(0.042, 0.042, 0.08, m.teal);
   wristCap.rotation.z = Math.PI / 2;
   j5.add(wristCap);
-  j5.add(box(0.06, 0.07, 0.07, m.red, 0.03, -0.06, 0)); // gripper body
-  j5.add(box(0.012, 0.05, 0.03, m.dark, 0.012, -0.12, 0)); // fingers
-  j5.add(box(0.012, 0.05, 0.03, m.dark, 0.048, -0.12, 0));
+  let carried: THREE.Mesh | null = null;
+  if (tool === "pcb") {
+    // PCB pick-up with no fingers, cups or stem: a plain cylindrical wrist flange in the arm's own colour,
+    // and the green PCB board held flat directly under it. Board centre
+    // is at x = 0.03 (where the plain gripper's fingers are) and its underside at -0.145.
+    const boardTop = -(toolDrop - 0.005);
+    const flangeH = -0.04 - boardTop; // from just under the wrist cap down to the board
+    j5.add(cylinder(0.036, 0.036, flangeH, white, 0, -0.04 - flangeH / 2, 0, 32)); // wrist flange
+    j5.add(cylinder(0.0365, 0.0365, 0.003, m.dark, 0, -0.04 - flangeH / 2, 0, 32)); // seam ring
+    // The green PCB board right under the flange (shown while carrying)
+    carried = box(0.065, 0.005, 0.042, m.pcb, 0.03, boardTop - 0.0025, 0);
+    for (const [dx, dz] of [[-0.022, -0.01], [0.004, 0.012], [0.024, -0.008]]) carried.add(box(0.014, 0.006, 0.014, m.dark, dx, 0.0055, dz)); // chips on top
+    j5.add(carried);
+  } else {
+    j5.add(box(0.06, 0.07, 0.07, m.red, 0.03, -0.06, 0)); // gripper body
+    j5.add(box(0.012, 0.05, 0.03, m.dark, 0.012, -0.12, 0)); // fingers
+    j5.add(box(0.012, 0.05, 0.03, m.dark, 0.048, -0.12, 0));
+  }
 
   // Pick at the drawn pose, lift while turning J1 to the place pose, lower, and come back.
   // The wrist cancels the shoulder and elbow moves so the gripper keeps pointing the same way.
   const update = (t: number) => {
-    const { move, dip: lower } = workCycle(t, motion.offset);
+    const { move, dip: lower, carrying } = workCycle(t, motion.offset);
+    carried?.scale.setScalar(carrying ? 1 : 0.001); // shrunk (not hidden) so the motion check still sees it when it shows
     const up = motion.lift * travelLift(move);
     const reach = -motion.dip * lower;
     j1.rotation.y = (motion.swing[0] ?? 0) * move;
@@ -331,11 +415,12 @@ export function createScara(m: Materials, opts: ScaraOptions) {
     swing = [0.35, -0.35],
     offset = 0,
     dip = 0.04,
+    dipPlace = dip,
     lift = 0.04,
   } = opts;
   const elbowAngle = Math.atan2(Math.sin(drawnElbow), Math.cos(drawnElbow)); // same pose, wrapped into ±π
   const root = new THREE.Group();
-  const motion: RobotMotion = { swing, offset, dip, lift };
+  const motion: RobotMotion = { swing, offset, dip, dipPlace, lift };
   root.userData.kind = "robot";
   root.userData.motion = motion;
   root.add(box(0.15, ph, 0.15, pedestalMaterial, 0, ph / 2, 0));
@@ -399,7 +484,7 @@ export function createScara(m: Materials, opts: ScaraOptions) {
     const { move, dip: lower } = workCycle(t, motion.offset);
     j1.rotation.y = baseAngle + (motion.swing[0] ?? 0) * move;
     j2.rotation.y = THREE.MathUtils.clamp(elbowAngle + (motion.swing[1] ?? 0) * move, -SCARA_ELBOW_LIMIT, SCARA_ELBOW_LIMIT);
-    quill.position.y = 0.02 + motion.lift * travelLift(move) - motion.dip * lower;
+    quill.position.y = 0.02 + motion.lift * travelLift(move) - (motion.dip * (1 - move) + (motion.dipPlace ?? motion.dip) * move) * lower;
   };
   update(0);
   return { object: root, update };
@@ -806,4 +891,26 @@ export function createGlassCell(m: Materials, { width: W, depth: D, height: H, c
   );
   g.add(box(0.012, 0.1, 0.012, m.steel, W / 2 + 0.02, deck + 0.38, 0.1));
   return { object: g, deckTop: deck + 0.015 };
+}
+
+/** Stack-light colours. A lamp mesh is tagged so the viewer can light it from a machine's power state. */
+export type LampColor = "green" | "amber" | "red";
+export function markLamp<T extends THREE.Object3D>(mesh: T, color: LampColor): T {
+  mesh.userData.lamp = color;
+  return mesh;
+}
+
+/**
+ * Stack light, the same on every machine (green, amber, red from the bottom: red on top) on a small base plate and pole, standing at
+ * (x, baseY, z). Its lamps are tagged (see markLamp) so the viewer can light them from power state.
+ */
+export function createStackLight(m: Materials, x: number, baseY: number, z: number, poleHeight = 0.1) {
+  const g = new THREE.Group();
+  g.add(box(0.06, 0.02, 0.06, m.dark, x, baseY + 0.01, z));
+  g.add(cylinder(0.012, 0.012, poleHeight, m.dark, x, baseY + 0.02 + poleHeight / 2, z, 12));
+  const top = baseY + 0.02 + poleHeight;
+  ([[m.pcb, "green"], [m.amber, "amber"], [m.red, "red"]] as const).forEach(([mat, color], i) =>
+    g.add(markLamp(cylinder(0.028, 0.028, 0.05, mat, x, top + 0.027 + i * 0.052, z, 20), color)),
+  );
+  return g;
 }

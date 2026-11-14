@@ -8,6 +8,7 @@ import {
   createRotaryTable,
   createScara,
   cylinder,
+  markLamp,
   panelXY,
   panelZY,
   type MachineParts,
@@ -337,7 +338,7 @@ export function createPulleyTurnaroundAssembly(): MachineParts {
   // Stack light on the front-left corner
   const sl = fromTop(437, 1042);
   add(cylinder(0.04, 0.045, 0.02, m.dark, sl.x, H + 0.01, sl.z, 20), cylinder(0.012, 0.012, 0.11, m.dark, sl.x, H + 0.075, sl.z, 12));
-  [m.pcb, m.amber, m.red].forEach((mat, i) => add(cylinder(0.028, 0.028, 0.045, mat, sl.x, H + 0.155 + i * 0.047, sl.z, 20)));
+  ([[m.pcb, "green"], [m.amber, "amber"], [m.red, "red"]] as const).forEach(([mat, color], i) => add(markLamp(cylinder(0.028, 0.028, 0.05, mat, sl.x, H + 0.155 + i * 0.052, sl.z, 20), color)));
 
   // ── Deck equipment (top view) ─────────────────────────────────────────
   const disc = fromTop(893, 762);

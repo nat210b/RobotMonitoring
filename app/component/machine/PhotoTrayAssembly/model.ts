@@ -5,7 +5,10 @@ import {
   createBowlFeeder,
   createMaterials,
   createSixAxisRobot,
+  pickIndexAngle,
+  ROBOT_CYCLE,
   cylinder,
+  markLamp,
   sixAxisPose,
   type MachineParts,
   type Materials,
@@ -57,7 +60,7 @@ function createRobotStand(m: Materials, height: number, size = 0.42) {
 }
 
 /** Large rotary index plate with fixture nests (dark plates with red locators). */
-function createIndexTable(m: Materials, radius: number, nests: number, offset = 0) {
+function createIndexTable(m: Materials, radius: number, nests: number, offset: number, pickStarts: readonly number[], move: number) {
   const g = new THREE.Group();
   g.add(cylinder(radius * 0.25, radius * 0.25, 0.04, m.robotGrey, 0, 0.02, 0));
   const disc = new THREE.Group();
@@ -76,7 +79,14 @@ function createIndexTable(m: Materials, radius: number, nests: number, offset = 
     nest.add(box(0.02, 0.04, 0.2, m.steel, -0.1, 0.04, 0));
     disc.add(nest);
   }
-  return g;
+  // Turns one nest right after each pick from this table (pickStarts: those robots' cycle starts)
+  const step = (Math.PI * 2) / nests;
+  disc.userData.indexTable = true; // tooling finds the turning part by this
+  const update = (t: number) => {
+    disc.rotation.y = pickIndexAngle(t, { starts: pickStarts, move, step });
+  };
+  update(0);
+  return { object: g, update };
 }
 
 /** Open aluminium tray rack with three shelves of black trays laid in lanes. */
@@ -125,7 +135,7 @@ function createFence(m: Materials, points: XZ[], height: number, glassFrom: numb
 function createStackLight(m: Materials, x: number, z: number, from: number, to: number) {
   const g = new THREE.Group();
   g.add(cylinder(0.012, 0.012, to - from, m.steel, x, (from + to) / 2, z, 12));
-  [m.pcb, m.amber, m.red].forEach((mat, i) => g.add(cylinder(0.03, 0.03, 0.055, mat, x, to + 0.03 + i * 0.057, z, 20)));
+  ([[m.pcb, "green"], [m.amber, "amber"], [m.red, "red"]] as const).forEach(([mat, color], i) => g.add(markLamp(cylinder(0.028, 0.028, 0.05, mat, x, to + 0.027 + i * 0.052, z, 20), color)));
   return g;
 }
 
@@ -157,10 +167,15 @@ export function createPhotoTrayAssembly(): MachineParts {
   // Two rotary index tables with six nests each
   const dialL = fromTop(620, 390);
   const dialR = fromTop(1002, 390);
-  for (const [dial, offset] of [[dialL, Math.PI / 6], [dialR, 0]] as const) {
-    const table = createIndexTable(m, 0.49, 6, offset);
-    table.position.set(dial.x, tableH, dial.z);
-    add(table);
+  // Cycle starts of the robots picking from each dial (filled in below). Each dial turns right after
+  // each of those picks: the left one after the left robot's, the right one after the back-right,
+  // right and front robots' (1.2 s apart, so its turn is shorter).
+  const pickStarts = { L: [] as number[], R: [] as number[] };
+  for (const [dial, offset, starts, move] of [[dialL, Math.PI / 6, pickStarts.L, 0.6], [dialR, 0, pickStarts.R, 0.4]] as const) {
+    const table = createIndexTable(m, 0.49, 6, offset, starts, move);
+    table.object.position.set(dial.x, tableH, dial.z);
+    add(table.object);
+    movers.push(table);
   }
 
   // ── Five 6-axis robots on stands ──────────────────────────────────────
@@ -176,25 +191,29 @@ export function createPhotoTrayAssembly(): MachineParts {
     const d = Math.hypot(dx, dz);
     return { x: dial.x + (dx / d) * nestRadius, z: dial.z + (dz / d) * nestRadius };
   };
-  const robots: { base: [number, number]; target: (b: XZ) => XZ; motion: Partial<RobotMotion> }[] = [
-    { base: [310, 445], target: (b) => facing(dialL, b), motion: { swing: [-1.1] } }, // left
+  const robots: { base: [number, number]; target: (b: XZ) => XZ; dial?: "L" | "R"; motion: Partial<RobotMotion> }[] = [
+    { base: [310, 445], target: (b) => facing(dialL, b), dial: "L", motion: { swing: [-1.1] } }, // left
     { base: [815, 85], target: () => fromTop(812, 330), motion: { swing: [-1.1] } }, // back-middle (between dials)
-    { base: [1065, 85], target: (b) => facing(dialR, b), motion: { swing: [1.1] } }, // back-right
-    { base: [1310, 400], target: (b) => facing(dialR, b), motion: { swing: [1.1], dip: 0.06 } }, // right
-    { base: [1000, 700], target: (b) => facing(dialR, b), motion: { swing: [1.1] } }, // front
+    { base: [1065, 85], target: (b) => facing(dialR, b), dial: "R", motion: { swing: [1.1] } }, // back-right
+    { base: [1310, 400], target: (b) => facing(dialR, b), dial: "R", motion: { swing: [0.9], dip: 0.06 } }, // right (swing kept short of the guard post beside it)
+    { base: [1000, 700], target: (b) => facing(dialR, b), dial: "R", motion: { swing: [1.1] } }, // front
   ];
   const standH = tableH;
   const robotScale = 1.45;
   const nestTop = tableH + 0.1;
-  const toolLength = 0.25; // wrist to gripper tip plus ~5 cm hover, world metres
-  robots.forEach(({ base, target, motion }, i) => {
+  // Epson arms as drawn: a short round flange at the wrist that holds the PCB board by suction (wrist centre to
+  // board underside 0.077, unscaled), and the bracket under the forearm.
+  const toolDrop = 0.077;
+  const toolLength = toolDrop * robotScale + 0.04; // wrist to board underside plus 4 cm hover, world metres
+  robots.forEach(({ base, target, dial, motion }, i) => {
+    if (dial) pickStarts[dial].push((i / robots.length) * ROBOT_CYCLE);
     const b = fromTop(...base);
     const t = target(b);
     const stand = createRobotStand(m, standH);
     stand.position.set(b.x, 0, b.z);
     add(stand);
     const pose = sixAxisPose(Math.hypot(t.x - b.x, t.z - b.z) / robotScale, (nestTop + toolLength - standH) / robotScale);
-    const robot = createSixAxisRobot(m, { ...pose, body: m.epson, baseCover: "connector", offset: i / robots.length, ...motion });
+    const robot = createSixAxisRobot(m, { ...pose, body: m.epson, baseCover: "connector", tool: "pcb", toolDrop, forearmBracket: true, offset: i / robots.length, ...motion });
     robot.object.scale.setScalar(robotScale);
     robot.object.position.set(b.x, standH, b.z);
     robot.object.rotation.y = Math.atan2(-(t.z - b.z), t.x - b.x);
@@ -231,11 +250,9 @@ export function createPhotoTrayAssembly(): MachineParts {
   estop.rotation.z = Math.PI / 2;
   add(estop);
 
-  // Stack lights: on the left fence corner and on the table's front corner
-  const sl1 = fromTop(445, 242);
-  const sl2 = fromTop(748, 562);
-  add(createStackLight(m, sl1.x, sl1.z, fenceHeight, 1.5));
-  add(createStackLight(m, sl2.x, sl2.z, tableH, 1.52));
+  // Stack light on the table's front corner
+  const sl = fromTop(748, 562);
+  add(createStackLight(m, sl.x, sl.z, tableH, 1.52));
 
   const update = (t: number) => movers.forEach((part) => part.update(t));
   update(0);
