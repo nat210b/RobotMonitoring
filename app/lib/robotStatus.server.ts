@@ -20,7 +20,55 @@ export async function insertRobotStatus(input: RobotStatusInput): Promise<{ id: 
   if (!robot) throw new UnknownRobotError(input.robot_id);
 
   const { insertedId } = await db.collection<RobotStatusInput & { _id?: ObjectId }>("robotStatus").insertOne({ ...input });
+  await syncRobotStatus(input.robot_id);
   return { id: insertedId.toHexString() };
+}
+
+/** This many FAIL results in a row put a robot into MAINTAIN. */
+export const MAINTAIN_AFTER_FAILS = 5;
+
+/**
+ * Brings a robot's robotStatus in line with its inspection log:
+ *  - the latest result is PASS: a single PASS puts a FAIL/MAINTAIN robot back to PASS;
+ *  - the latest MAINTAIN_AFTER_FAILS results are all FAIL: the robot goes to MAINTAIN.
+ * Returns the status it changed the robot to, or null if nothing changed.
+ * updatedAt is left alone: it tracks when the robot last reported, which the power check relies on.
+ */
+export async function syncRobotStatus(robotId: string): Promise<"PASS" | "MAINTAIN" | null> {
+  const db = await getDb();
+  const latest = await db
+    .collection("robotStatus")
+    .find({ $or: [{ robotID: robotId }, { robot_id: robotId }] }, { projection: { status: 1 } })
+    .sort({ datetime: -1 })
+    .limit(MAINTAIN_AFTER_FAILS)
+    .toArray();
+  const robots = db.collection("robots");
+  if (latest[0]?.status === "PASS") {
+    const r = await robots.updateOne({ robotID: robotId, robotStatus: { $ne: "PASS" } }, { $set: { robotStatus: "PASS" } });
+    return r.modifiedCount ? "PASS" : null;
+  }
+  if (latest.length === MAINTAIN_AFTER_FAILS && latest.every((d) => d.status === "FAIL")) {
+    const r = await robots.updateOne({ robotID: robotId, robotStatus: { $ne: "MAINTAIN" } }, { $set: { robotStatus: "MAINTAIN" } });
+    return r.modifiedCount ? "MAINTAIN" : null;
+  }
+  return null;
+}
+
+/**
+ * Applies syncRobotStatus to every robot. The rules normally run when a result is posted through the
+ * API, but results written straight into MongoDB skip that, so the server also sweeps periodically.
+ * Returns how many robots changed status.
+ */
+export async function syncAllRobotStatuses(): Promise<Record<"PASS" | "MAINTAIN", number>> {
+  const db = await getDb();
+  const ids = await db.collection("robots").distinct("robotID");
+  const changed = { PASS: 0, MAINTAIN: 0 };
+  for (const id of ids) {
+    if (typeof id !== "string") continue;
+    const to = await syncRobotStatus(id);
+    if (to) changed[to]++;
+  }
+  return changed;
 }
 
 /** Latest inspection results from `robotStatus`, newest first. */

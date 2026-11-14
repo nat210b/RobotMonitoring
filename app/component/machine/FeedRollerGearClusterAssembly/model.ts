@@ -8,6 +8,9 @@ import {
   createRotaryTable,
   createScara,
   createSixAxisRobot,
+  createStackLight,
+  SCARA_QUILL_OFFSET,
+  sixAxisPose,
   panelXY,
   panelZY,
   type MachineParts,
@@ -32,6 +35,11 @@ export const FRAME = {
   /** Lower deck at the back half (bowl feeders, SCARA 1, 6-axis arm). */
   deckBack: 0.4,
 };
+
+/** Rotary table radius, and the height of a nest's top above the table's base (disc 0.05 + plate 0.012 + nest 0.03). */
+const ROTARY_R = 0.17;
+const NEST_TOP = 0.102; // top of the tallest nest part (its dark stop) above the table's base: disc 0.05 + plate 0.012 + 0.04
+const CLEAR = 0.006; // tools stop this far above it (the motion check wants 5 mm)
 
 export function createFeedRollerGearClusterAssembly(): MachineParts {
   const m = createMaterials();
@@ -125,43 +133,90 @@ export function createFeedRollerGearClusterAssembly(): MachineParts {
 
   // ── Equipment (positions taken from the top view) ─────────────────────
   const rotaryPos = new THREE.Vector3(-0.08, topFront, 0.22);
-  const rotary = createRotaryTable(m, 0.17);
+  const rotary = createRotaryTable(m, ROTARY_R);
   rotary.object.position.copy(rotaryPos);
   add(rotary.object);
 
+  // The rotary table stops with a nest at every 45° (0° = +x, measured as atan2(z, x)). Each robot
+  // works one of them: the 6-axis arm picks from the nest nearest to it, SCARA 1 and SCARA 2 place onto
+  // theirs. A nest sits at 0.8 × the table radius from its centre.
+  const nest = (deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return new THREE.Vector3(rotaryPos.x + Math.cos(a) * ROTARY_R * 0.8, 0, rotaryPos.z + Math.sin(a) * ROTARY_R * 0.8);
+  };
+  const GRIP_REACH = 0.03; // the 6-axis fingers sit this far ahead of its wrist
+  const GRIP_DROP = 0.145; // wrist to fingertip
+  const HOVER = 0.04; // gap between fingertips and nest at the top of the stroke
+  const armBase = new THREE.Vector3(-0.4, topBack, -0.18);
+  const armNest = nest(-135);
+  const armFace = Math.atan2(-(armNest.z - armBase.z), armNest.x - armBase.x); // J1 yaw that points at the nest
+  const armPose = sixAxisPose(
+    Math.hypot(armNest.x - armBase.x, armNest.z - armBase.z) - GRIP_REACH,
+    rotaryPos.y + NEST_TOP + CLEAR + GRIP_DROP + HOVER - armBase.y,
+  );
   // Swings and cycle offsets checked collision-free by scripts/check-motion.ts
-  const arm = createSixAxisRobot(m, { swing: [-1.1], offset: 1 / 3 });
-  arm.object.position.set(-0.4, topBack, -0.18);
-  arm.object.rotation.y = Math.atan2(-(rotaryPos.z + 0.18), rotaryPos.x + 0.4); // face the rotary table
+  const arm = createSixAxisRobot(m, { ...armPose, tool: "pcb", swing: [-0.9 + (Math.atan2(-(rotaryPos.z - armBase.z), rotaryPos.x - armBase.x) - armFace)], offset: 1 / 8, dip: HOVER / 0.3 });
+  arm.object.position.copy(armBase);
+  arm.object.rotation.y = armFace; // face the nest it picks from
   add(arm.object);
 
+  /** J1 / J2 angles that put a SCARA's quill over `target`, elbow folded to `side` (-1: negative, as drawn). */
+  const scaraAngles = (base: THREE.Vector3, target: THREE.Vector3, link1: number, side: 1 | -1 = -1) => {
+    const link2 = SCARA_QUILL_OFFSET;
+    const dx = target.x - base.x;
+    const dy = -(target.z - base.z); // joint angles turn from +x towards -z
+    const dist = Math.min(Math.hypot(dx, dy), link1 + link2 - 1e-3);
+    const elbow = side * Math.acos(THREE.MathUtils.clamp((dist * dist - link1 * link1 - link2 * link2) / (2 * link1 * link2), -1, 1));
+    const baseAngle = Math.atan2(dy, dx) - Math.atan2(link2 * Math.sin(elbow), link1 + link2 * Math.cos(elbow));
+    return { baseAngle, elbow };
+  };
+  const NEST_Y = rotaryPos.y + NEST_TOP;
+  const quillDrop = (ph: number, toolBottom: number, base: THREE.Vector3, targetY = NEST_Y) => base.y + ph + 0.16 + 0.05 + 0.02 - toolBottom - targetY; // stroke that lands the tool on targetY (a nest top by default)
+
+  // Bowl feeder 1 ("bucket"): SCARA 1 picks the parts from its linear outlet track, 0.13 m along it
+  // (track top is 0.21 m above the deck; the track runs from the bowl rim along the bowl's local +x).
+  const BOWL1 = { pos: new THREE.Vector3(0.2, topBack, -0.26), rotY: Math.PI * 0.85, radius: 0.1 };
+  const trackPick = new THREE.Vector3(BOWL1.radius + 0.03, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), BOWL1.rotY).add(BOWL1.pos);
+  const TRACK_TOP_Y = BOWL1.pos.y + 0.21;
+
   const scaraTop = 0.64; // both SCARA bases sit at the same height in the front view
+  const scara1Base = new THREE.Vector3(-0.12, topBack, -0.3);
+  const scara1Pick = scaraAngles(scara1Base, trackPick, 0.26, 1); // picks from bowl feeder 1's track
+  const scara1Place = scaraAngles(scara1Base, nest(-90), 0.26, 1); // places onto the nest at -90°
   const scara1 = createScara(m, {
     pedestalHeight: scaraTop - topBack,
-    baseAngle: 0,
-    elbowAngle: -2.25,
+    baseAngle: scara1Pick.baseAngle,
+    elbowAngle: scara1Pick.elbow,
     link1: 0.26,
-    swing: [-0.8, 1.28],
+    connectorBoard: "+z", // green connector panel on the front face of the base
+    swing: [scara1Place.baseAngle - scara1Pick.baseAngle, scara1Place.elbow - scara1Pick.elbow],
+    dip: Math.max(0.01, quillDrop(scaraTop - topBack, 0.17, scara1Base, TRACK_TOP_Y) - CLEAR),
+    dipPlace: Math.max(0.01, quillDrop(scaraTop - topBack, 0.17, scara1Base) - CLEAR),
     lift: 0, // quill already sits just under the overhead beam
   });
-  scara1.object.position.set(-0.12, topBack, -0.3);
+  scara1.object.position.copy(scara1Base);
   add(scara1.object);
 
+  const scara2Base = new THREE.Vector3(0.4, topFront, 0.24);
+  const scara2Place = scaraAngles(scara2Base, nest(0), 0.26); // places onto the nest at 0°
+  const scara2Ped = scaraTop - topFront;
   const scara2 = createScara(m, {
-    pedestalHeight: scaraTop - topFront,
+    pedestalHeight: scara2Ped,
     baseAngle: 1.73,
     elbowAngle: -2.44,
     link1: 0.26,
-    tool: "pcb",
-    swing: [0.8, 0],
-    offset: 2 / 3,
+    connectorBoard: "+z",
+    swing: [scara2Place.baseAngle - 1.73 + (scara2Place.baseAngle < 1.73 ? 2 * Math.PI : 0), scara2Place.elbow + 2.44],
+    dip: Math.max(0.01, quillDrop(scara2Ped, 0.17, scara2Base) - CLEAR),
+    lift: 0.03, // its quill rod would otherwise brush the glass roof while travelling
+    offset: 3 / 8,
   });
-  scara2.object.position.set(0.4, topFront, 0.24);
+  scara2.object.position.copy(scara2Base);
   add(scara2.object);
 
-  const bowl1 = createBowlFeeder(m, 0.1);
-  bowl1.object.position.set(0.2, topBack, -0.26);
-  bowl1.object.rotation.y = Math.PI * 0.85;
+  const bowl1 = createBowlFeeder(m, BOWL1.radius);
+  bowl1.object.position.copy(BOWL1.pos);
+  bowl1.object.rotation.y = BOWL1.rotY;
   add(bowl1.object);
 
   const bowl2 = createBowlFeeder(m, 0.09, 2);
@@ -187,8 +242,19 @@ export function createFeedRollerGearClusterAssembly(): MachineParts {
     }
   }
 
-  const movers = [arm, scara1, scara2, rotary, bowl1, bowl2];
-  const update = (t: number) => movers.forEach((part) => part.update(t));
+  // Stack light on the back-right corner of the roof
+  add(createStackLight(m, x1 - 0.06, H, z0 + 0.06));
+
+  // Tools go down on nests at 0.52–1.24 s (SCARA 1, start 0 s), 0.77–1.49 s (SCARA 2, start 2.25 s) and 0.75–1.47 s
+  // (6-axis pick, start 0.75 s) of every 2 s. The table's indexing is shifted to turn only at 1.64–2.34 s, so it
+  // is standing still whenever a tool is down on a nest. (Start times found with the motion check.)
+  const ROTARY_PHASE = 1.64;
+  root.userData.rotaryPhase = ROTARY_PHASE;
+  const movers = [arm, scara1, scara2, bowl1, bowl2];
+  const update = (t: number) => {
+    movers.forEach((part) => part.update(t));
+    rotary.update(t - (root.userData.rotaryPhase as number)); // tunable by tooling like the robots' motion settings
+  };
   update(0);
 
   return { object: root, update };

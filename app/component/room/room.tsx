@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { LampColor } from "../machine/parts";
 import MachineViewer from "../machine/MachineViewer";
 import { ROOM_SECTIONS } from "./floorPlan";
 import { createRoom, ROOM, ROOM_LAYOUT, ROOM_NAME } from "./model";
@@ -37,11 +38,15 @@ type Props = {
   showZones?: boolean;
   /** Camera mode (see MachineViewer). */
   view?: "iso" | "top" | "free";
+  /** Ids of sections with a problem; their floor highlight turns yellow. */
+  zoneAlerts?: readonly string[];
+  /** Lamp to light per machine id (see MachineViewer). */
+  lamps?: Record<string, LampColor | undefined>;
   className?: string;
 };
 
 /** 3D view of the whole robot combined room with every machine in place. */
-export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, className }: Props) {
+export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, lamps, zoneAlerts, className }: Props) {
   return (
     <MachineViewer
       create={createRoom}
@@ -59,6 +64,8 @@ export default function Room({ height = 640, fill = false, autoRotate = false, a
       zones={ROOM_SECTIONS}
       showZones={showZones}
       view={view}
+      lamps={lamps}
+      zoneAlerts={zoneAlerts}
       className={className}
     />
   );

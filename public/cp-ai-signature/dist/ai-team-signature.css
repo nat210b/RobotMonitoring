@@ -1,0 +1,30 @@
+/* CP-INNOVATION | AI TEAM — reusable developer signature, v1.1.
+   Component styles are namespaced with cpait- to avoid changing host layouts. */
+:root { --cpait-navy:#0B1B2B; --cpait-graphite:#1A222E; --cpait-cyan:#00D8FF; --cpait-white:#F5FAFF; --cpait-slate:#8FA3B8; }
+.cpait-slot { display:inline-flex; align-items:center; min-width:0; max-width:100%; }
+.cpait-brand { display:inline-flex; align-items:center; max-width:100%; line-height:0; }
+.cpait-brand img { display:block; width:min(100%, 332px); max-height:58px; height:auto; }
+.cpait-badge { box-sizing:border-box; border:0; padding:0; margin:0; border-radius:999px; background:none; cursor:pointer; display:inline-flex; vertical-align:middle; line-height:0; transition:filter .2s ease, transform .2s ease; }
+.cpait-badge img { width:188px; height:auto; display:block; max-width:100%; }
+.cpait-badge:hover { transform:translateY(-1px); filter:drop-shadow(0 0 8px rgba(0,216,255,.32)); }
+.cpait-badge:focus-visible, .cpait-close:focus-visible, .cpait-link:focus-visible { outline:3px solid var(--cpait-cyan); outline-offset:4px; }
+.cpait-footer { box-sizing:border-box; display:flex; align-items:center; flex-wrap:wrap; gap:8px 14px; color:var(--cpait-slate); font:500 12px/1.5 Inter, system-ui, 'Segoe UI', sans-serif; }
+.cpait-footer__logo { display:block; width:22px; height:22px; flex:none; }
+.cpait-footer__label { color:inherit; }
+.cpait-footer__meta { opacity:.82; }
+.cpait-footer--light { color:#495E72; }
+.cpait-overlay[hidden] { display:none !important; }
+.cpait-overlay { position:fixed; z-index:2147483600; inset:0; box-sizing:border-box; padding:20px; overflow:auto; display:flex; align-items:center; justify-content:center; background:rgba(1,11,23,.78); backdrop-filter:blur(6px); }
+.cpait-dialog { position:relative; box-sizing:border-box; overflow:hidden; width:min(100%,580px); max-height:min(90vh,800px); overflow-y:auto; padding:34px; border:1px solid #2C5A70; border-radius:19px; color:var(--cpait-white); background:linear-gradient(145deg,#173149 0%,var(--cpait-navy) 70%); box-shadow:0 28px 90px #0009; font:14px/1.65 Inter,system-ui,'Segoe UI',sans-serif; }
+.cpait-dialog::after { content:""; position:absolute; pointer-events:none; width:170px; height:2px; top:0; left:28px; background:linear-gradient(90deg, transparent, var(--cpait-cyan), transparent); }
+.cpait-close { position:absolute; top:14px; right:14px; border:1px solid #33556D; width:36px; height:36px; border-radius:9px; display:grid; place-items:center; background:#14314A; color:#E2F5FC; font-size:23px; cursor:pointer; }
+.cpait-dialog__brand { display:block; width:min(100%,385px); height:auto; margin:4px 28px 20px 0; }
+.cpait-dialog__eyebrow { color:#75DDEB; text-transform:uppercase; letter-spacing:2px; font-size:10px; font-weight:700; }
+.cpait-dialog h2 { font-size:23px; font-weight:700; margin:4px 0 7px; line-height:1.25; }
+.cpait-dialog__intro { color:#ADBFCE; margin:0 0 22px; }
+.cpait-dialog dl { display:grid; grid-template-columns:minmax(125px,.48fr) minmax(0,1fr); gap:11px 18px; padding-top:20px; margin:0; border-top:1px solid #284357; }
+.cpait-dialog dt { color:#8FA3B8; }
+.cpait-dialog dd { font-weight:600; margin:0; overflow-wrap:anywhere; }
+.cpait-dialog__foot { margin:22px 0 0; padding-top:14px; border-top:1px solid #284357; font-size:11px; color:#7799AD; }
+@media(max-width:540px){ .cpait-badge img{width:154px;} .cpait-dialog{padding:25px 20px;} .cpait-dialog dl{grid-template-columns:1fr;gap:2px;} .cpait-dialog dd{margin-bottom:12px;} }
+@media(prefers-reduced-motion:reduce){ .cpait-badge{transition:none;} }

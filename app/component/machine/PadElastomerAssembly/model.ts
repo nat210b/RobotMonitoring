@@ -7,6 +7,7 @@ import {
   createRotaryTable,
   createScara,
   cylinder,
+  markLamp,
   panelXY,
   panelZY,
   type MachineParts,
@@ -154,7 +155,7 @@ export function createPadElastomerAssembly(): MachineParts {
   // Stack light on the front-right corner
   const sl = fromTop(1326, 1049);
   add(cylinder(0.01, 0.01, 0.13, m.steel, sl.x, H + 0.065, sl.z, 12));
-  [m.pcb, m.amber, m.red].forEach((mat, i) => add(cylinder(0.025, 0.025, 0.05, mat, sl.x, H + 0.155 + i * 0.052, sl.z, 20)));
+  ([[m.pcb, "green"], [m.amber, "amber"], [m.red, "red"]] as const).forEach(([mat, color], i) => add(markLamp(cylinder(0.028, 0.028, 0.05, mat, sl.x, H + 0.155 + i * 0.052, sl.z, 20), color)));
 
   // ── Deck equipment (top view) ────────────────────────────────────────
   const deckTop = deck + 0.02;

@@ -69,7 +69,7 @@ export function DataTable<T>({
     );
 
   return (
-    <div className={cn("overflow-hidden rounded-card border border-line bg-surface", className)}>
+    <div className={cn("hud overflow-hidden rounded-card border border-line bg-surface", className)}>
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}

@@ -7,6 +7,7 @@ import {
   createMaterials,
   createPowerSupply,
   createScara,
+  createStackLight,
   cylinder,
   POWER_SUPPLY,
   type MachineParts,
@@ -48,6 +49,8 @@ export function createPickDriveAssembly(): MachineParts {
 
   const cell = createGlassCell(m, FRAME);
   add(cell.object);
+  // Stack light on the back-right corner of the roof
+  add(createStackLight(m, FRAME.width / 2 - 0.06, FRAME.height, -FRAME.depth / 2 + 0.06));
   const { deckTop } = cell;
 
   // ── Three SCARAs, posed as drawn (base J1, elbow J2, quill) ───────────────

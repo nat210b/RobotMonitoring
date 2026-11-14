@@ -24,6 +24,8 @@ import PickDriveAssembly, { pickDriveAssembly } from "../component/machine/PickD
 import PulleyTurnaroundAssembly, { pulleyTurnaroundAssembly } from "../component/machine/PulleyTurnaroundAssembly";
 import UpgAssembly, { upgAssembly } from "../component/machine/UpgAssembly";
 import Link from "next/link";
+import { AppIcon, TeamBadge } from "../component/signature/BrandMarks";
+import { SignatureBadge, SignatureFooter, SignatureKit, SignatureLogo, useSignatureStatus, type SignatureConfig } from "../component/signature/Signature";
 
 type Robot = {
   id: string;
@@ -52,12 +54,25 @@ const columns: Column<Robot>[] = [
   { key: "battery", header: "Battery", align: "right", cell: (robot) => `${robot.battery}%`, sortValue: (robot) => robot.battery },
 ];
 
+/** Product details shown in the signature credits (see public/App.example.jsx). */
+const signatureApp: SignatureConfig = {
+  baseUrl: "/cp-ai-signature/assets",
+  theme: "dark",
+  locale: "en",
+  product: "Robot Monitoring",
+  appId: "ROBOT-MONITORING-001",
+  version: "1.0.0",
+  projectOwner: "TH-CP1-Innovation Team",
+};
+
 const sectionClass = "scroll-mt-8";
 const sectionTitleClass = "mb-1 text-lg font-semibold tracking-tight";
 const sectionDescriptionClass = "mb-5 text-sm text-muted";
 
 export default function Home() {
   const [page, setPage] = useState(2);
+  const [signature, setSignatureStatus] = useSignatureStatus();
+  const signatureReady = signature === "ready";
 
   return (
     <main className="flex-1 bg-background px-4 py-8 text-foreground sm:px-8 sm:py-12">
@@ -65,7 +80,7 @@ export default function Home() {
         <header className="mb-10 flex flex-col justify-between gap-5 border-b border-line pb-8 sm:flex-row sm:items-end">
           <div>
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-brand">
-              <span className="grid size-8 place-items-center rounded-control bg-brand-soft">R</span>
+              <AppIcon />
               ROBOT MONITORING
             </div>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Design system</h1>
@@ -76,6 +91,7 @@ export default function Home() {
               ← Room view
             </Link>
             <Badge tone="brand">UI kit · v1.0</Badge>
+            <TeamBadge />
           </div>
         </header>
 
@@ -120,7 +136,7 @@ export default function Home() {
                 <Card title="Color palette" description="Brand and status colors">
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {[
-                      ["Brand", "bg-brand", "#64A70B"],
+                      ["Brand", "bg-brand", "#38BDF8"],
                       ["Brand soft", "bg-brand-soft", "#EEF6E1"],
                       ["Surface", "bg-surface-2", "#F6F8F5"],
                       ["Danger", "bg-danger", "#D64545"],
@@ -205,6 +221,26 @@ export default function Home() {
               <Col md={4}><Card title="Active robots" description="Across all facilities"><p className="text-3xl font-semibold">24<span className="ml-2 text-base font-normal text-muted">/ 28</span></p><div className="mt-4 h-2 overflow-hidden rounded-full bg-surface-3"><div className="h-full w-[86%] rounded-full bg-brand" /></div></Card></Col>
               <Col md={4}><Card title="Maintenance queue" description="Requires review" footer="Updated 4 minutes ago"><p className="text-3xl font-semibold">03</p><p className="mt-2 text-sm text-muted">1 scheduled · 2 pending</p></Card></Col>
             </Grid>
+          </section>
+
+          <section className={sectionClass} aria-labelledby="signature-title">
+            <h2 id="signature-title" className={sectionTitleClass}>AI Team signature</h2>
+            <p className={sectionDescriptionClass}>Logo, badge and footer from the shared signature kit. Click the badge to view the credits.</p>
+            <SignatureKit onStatus={setSignatureStatus} />
+            <Card title="Signature components" description="SignatureLogo · SignatureBadge · SignatureFooter" actions={<Badge tone={signatureReady ? "brand" : "warning"}>{signatureReady ? "Kit loaded" : signature === "loading" ? "Loading…" : "Kit not found"}</Badge>}>
+              {signature === "missing" && (
+                <p className="mb-4 border border-dashed border-line p-3 text-sm text-muted">
+                  The signature kit is not in this project yet. Copy its <code>dist</code> folder (ai-team-signature.css and .js) and <code>assets</code> folder into <code>public/cp-ai-signature/</code>, then reload.
+                </p>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-6">
+                <SignatureLogo ready={signatureReady} {...signatureApp} />
+                <SignatureBadge ready={signatureReady} {...signatureApp} />
+              </div>
+              <div className="mt-6 border-t border-line pt-4">
+                <SignatureFooter ready={signatureReady} {...signatureApp} />
+              </div>
+            </Card>
           </section>
 
           <section className={sectionClass} aria-labelledby="table-title">

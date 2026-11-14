@@ -29,3 +29,7 @@ export type { RangeOption } from "./Selector";
 export { OptionCard } from "./OptionCard";
 export type { OptionCardProps } from "./OptionCard";
 export { cn } from "./cn";
+export { useDismiss } from "./useDismiss";
+export { usePresence } from "./usePresence";
+export { StatusIcon } from "./StatusIcon";
+export type { StatusIconKind } from "./StatusIcon";

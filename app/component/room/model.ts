@@ -11,8 +11,7 @@ import { createUpgAssembly } from "../machine/UpgAssembly/model";
 import { ROBOT_CYCLE, type MachineParts } from "../machine/parts";
 
 import { createAgvRoute } from "./agv";
-import { createFloorSign, createPillarSign } from "./floorSign";
-import { ROOM, ROOM_FLOOR_SIGNS, ROOM_LAYOUT, type MachinePlacement, type MachineType } from "./floorPlan";
+import { ROOM, ROOM_LAYOUT, type MachinePlacement, type MachineType } from "./floorPlan";
 
 export { ROOM, ROOM_LAYOUT, ROOM_NAME, MACHINE_IDS } from "./floorPlan";
 export type { MachinePlacement, MachineType } from "./floorPlan";
@@ -127,10 +126,23 @@ function createRoomShell() {
   const cz = (z0 + z1) / 2;
 
   // Floor with tile joints (grid starts at the back-left corner, as in the drawing)
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ color: 0xeceef1, roughness: 0.9 }));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(cx, -0.001, cz);
+  // Thick slab (top face at y≈0) with a blue-tinted surface and a glowing blue edge band.
+  const SLAB = 0.45;
+  const floor = new THREE.Mesh(
+    new THREE.BoxGeometry(W, SLAB, D),
+    new THREE.MeshStandardMaterial({ color: 0xeceef1, roughness: 0.6 }),
+  );
+  floor.position.set(cx, -0.001 - SLAB / 2, cz);
   g.add(floor);
+  // Blue glow as one even line around the slab: a bright band on its side faces (no ground plate, no point
+  // lights, no wide halo).
+  const NEON = 0x38bdf8;
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(W + 0.04, 0.1, D + 0.04),
+    new THREE.MeshBasicMaterial({ color: NEON }),
+  );
+  glow.position.set(cx, -SLAB * 0.5, cz);
+  g.add(glow);
   const pts: number[] = [];
   for (let x = x0; x <= x1 + 1e-6; x += tile) pts.push(x, 0.001, z0, x, 0.001, z1);
   for (let z = z0; z <= z1 + 1e-6; z += tile) pts.push(x0, 0.001, z, x1, 0.001, z);
@@ -237,13 +249,6 @@ function createRoomShell() {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_SIZE, H + 0.6, PILLAR_SIZE), pillarMat);
     mesh.position.set(p.x, (H + 0.6) / 2, p.z);
     g.add(mesh);
-    // Team plate on the front (+z) and back (-z) face of the column.
-    for (const side of [1, -1]) {
-      const plate = createPillarSign("TH-CP1-Innovation Team", PILLAR_SIZE * 0.8, 2.2);
-      plate.position.set(p.x, 1.55, p.z + side * (PILLAR_SIZE / 2 + 0.004));
-      if (side === -1) plate.rotation.y = Math.PI;
-      g.add(plate);
-    }
   }
   const cp = COLUMN_PARTITION;
   g.add(
@@ -294,7 +299,6 @@ function animatedNodeIndices(parts: MachineParts) {
 export function createRoom(layout: MachinePlacement[] = ROOM_LAYOUT): MachineParts {
   const root = new THREE.Group();
   root.add(createRoomShell());
-  for (const sign of ROOM_FLOOR_SIGNS) root.add(createFloorSign(sign));
   const agv = createAgvRoute();
   root.add(agv.object);
   const prototypes = new Map<MachineType, { parts: MachineParts; moving: THREE.Object3D[]; indices: number[] }>();

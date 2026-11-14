@@ -9,6 +9,8 @@ export type Settings = {
   showHighlight: boolean;
   /** One name badge per section. Off whenever machine status is on. */
   showSectionNames: boolean;
+  /** A red power icon over each machine that is off. */
+  showPowerIcons: boolean;
   /** A status badge over each machine. */
   showMachineStatus: boolean;
   theme: Theme;
@@ -18,7 +20,7 @@ const KEY = "robot-monitoring-settings";
 
 const systemTheme = (): Theme => (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
-const DEFAULTS: Omit<Settings, "theme"> = { showHighlight: true, showSectionNames: true, showMachineStatus: false };
+const DEFAULTS: Omit<Settings, "theme"> = { showHighlight: true, showSectionNames: true, showPowerIcons: true, showMachineStatus: false };
 
 /** Room view + theme settings, remembered in localStorage and applied to <html data-theme>. */
 export function useSettings() {

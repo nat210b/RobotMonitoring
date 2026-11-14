@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { MachineParts } from "./parts";
+import type { LampColor, MachineParts } from "./parts";
 
 type MachineViewerProps = {
   /** Builds the machine. Pass a stable (module-level) function. */
@@ -38,6 +38,8 @@ type MachineViewerProps = {
    * `badges`, which then floats over the zone. Pass a stable (module-level) array.
    */
   zones?: readonly { id: string; machineIds: readonly string[]; color: string }[];
+  /** Ids of zones to flag as having a problem: their floor highlight turns warning yellow. */
+  zoneAlerts?: readonly string[];
   /** Floor margin (world units) between a zone's machines and its highlight edge. */
   zonePad?: number;
   /** Show the zones' floor tint and outline (they still shape badges and the hover fill's limits). */
@@ -47,8 +49,36 @@ type MachineViewerProps = {
    * cameraDirection) or the top-down view and lock rotation (zoom and pan still work).
    */
   view?: "iso" | "top" | "free";
+  /** Which stack-light lamp to light per machine id. A machine without an entry lights red. */
+  lamps?: Record<string, LampColor | undefined>;
   className?: string;
 };
+
+/** Floor highlight colour of a zone that has a problem. */
+const ZONE_ALERT_COLOR = "#ffc21a";
+const LAMP_GLOW = { green: 0x2fe06b, amber: 0xffb020, red: 0xff3b30 } as const;
+
+/** Lights or darkens the tagged stack-light lamps (see markLamp) of every machine in the scene. */
+function applyLamps(scene: THREE.Object3D, lamps: Record<string, LampColor | undefined>) {
+  scene.traverse((node) => {
+    if (node.userData.kind !== "machine") return;
+    const litLamp = lamps[node.userData.id as string] ?? "red";
+    node.traverse((child) => {
+      const lamp = child.userData.lamp as keyof typeof LAMP_GLOW | undefined;
+      if (!lamp || !(child instanceof THREE.Mesh)) return;
+      // Machines of one type share materials, so give each lamp its own before changing it.
+      if (!child.userData.ownMaterial) {
+        child.material = (child.material as THREE.MeshStandardMaterial).clone();
+        child.userData.ownMaterial = true;
+      }
+      const mat = child.material as THREE.MeshStandardMaterial;
+      const lit = lamp === litLamp;
+      mat.color.setHex(LAMP_GLOW[lamp]).multiplyScalar(lit ? 1 : 0.22);
+      mat.emissive.setHex(LAMP_GLOW[lamp]);
+      mat.emissiveIntensity = lit ? 1.6 : 0;
+    });
+  });
+}
 
 /** Pointer travel (px) above which a press counts as a drag, not a click. */
 const DEFAULT_CAMERA_DIRECTION = [1, 1.414, 1.5] as const;
@@ -71,9 +101,11 @@ export default function MachineViewer({
   viewShift = NO_SHIFT,
   badges,
   zones,
+  zoneAlerts,
   zonePad = 0.25,
   showZones = true,
   view = "free",
+  lamps,
   className,
 }: MachineViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -86,6 +118,21 @@ export default function MachineViewer({
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  const lampsRef = useRef(lamps);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  useEffect(() => {
+    lampsRef.current = lamps;
+    if (sceneRef.current && lamps) applyLamps(sceneRef.current, lamps);
+  }, [lamps]);
+
+  // Recolours zone highlights in place (no scene rebuild) when a zone gains or loses a problem.
+  const alertsRef = useRef(zoneAlerts);
+  const recolorZonesRef = useRef<((alerts: readonly string[] | undefined) => void) | null>(null);
+  useEffect(() => {
+    alertsRef.current = zoneAlerts;
+    recolorZonesRef.current?.(zoneAlerts);
+  }, [zoneAlerts]);
 
   const viewRef = useRef(view);
   const applyViewRef = useRef<((v: "iso" | "top" | "free", instant?: boolean) => void) | null>(null);
@@ -119,6 +166,8 @@ export default function MachineViewer({
 
     const machine = create();
     scene.add(machine.object);
+    sceneRef.current = scene;
+    if (lampsRef.current) applyLamps(scene, lampsRef.current);
 
     // Fit camera to the model
     const bounds = new THREE.Box3().setFromObject(machine.object);
@@ -225,6 +274,7 @@ export default function MachineViewer({
     // Zones: a tinted floor rectangle with a dashed outline round each group of machines.
     const zoneBoxes = new Map<string, THREE.Box3>();
     const zoneDisposables: { dispose(): void }[] = [];
+    const zoneStyles: { id: string; base: string; machineIds: readonly string[]; fill: THREE.MeshBasicMaterial; line: THREE.LineBasicMaterial }[] = [];
     const zoneGroup = new THREE.Group();
     zoneGroup.visible = showZonesRef.current;
     zoneGroupRef.current = zoneGroup;
@@ -265,9 +315,20 @@ export default function MachineViewer({
         ]),
         new THREE.LineBasicMaterial({ color: zone.color }),
       );
+      zoneStyles.push({ id: zone.id, base: zone.color, machineIds: zone.machineIds, fill: fillM, line: loop.material as THREE.LineBasicMaterial });
       zoneGroup.add(plane, loop);
       zoneDisposables.push(plane.geometry, fillM, loop.geometry, loop.material as THREE.Material);
     }
+    recolorZonesRef.current = (alerts) => {
+      for (const z of zoneStyles) {
+        const color = alerts?.includes(z.id) ? ZONE_ALERT_COLOR : z.base;
+        z.fill.color.set(color);
+        z.line.color.set(color);
+        const shade = new THREE.Color(color).multiplyScalar(0.6);
+        for (const id of z.machineIds) zoneShade.set(id, shade);
+      }
+    };
+    recolorZonesRef.current(alertsRef.current);
 
     const selectFill = makeFill();
     const highlight = (id: string | null) => void placeFill(selectFill, id);
@@ -386,8 +447,10 @@ export default function MachineViewer({
       cancelAnimationFrame(frame);
       observer.disconnect();
       highlightRef.current = null;
+      sceneRef.current = null;
       applyViewRef.current = null;
       zoneGroupRef.current = null;
+      recolorZonesRef.current = null;
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
@@ -404,10 +467,7 @@ export default function MachineViewer({
           (Array.isArray(child.material) ? child.material : [child.material]).forEach((mat) => materials.add(mat));
         }
       });
-      materials.forEach((mat) => {
-        (mat as THREE.MeshBasicMaterial).map?.dispose(); // canvas textures (floor signs)
-        mat.dispose();
-      });
+      materials.forEach((mat) => mat.dispose());
       renderer.dispose();
       renderer.forceContextLoss(); // free the WebGL context now (browsers cap how many can be open)
       renderer.domElement.remove();

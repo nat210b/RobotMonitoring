@@ -8,7 +8,10 @@ import {
   createMaterials,
   createScara,
   createSixAxisRobot,
+  pickIndexAngle,
+  ROBOT_CYCLE,
   cylinder,
+  markLamp,
   panelXY,
   panelZY,
   sixAxisPose,
@@ -47,7 +50,7 @@ const fromTop = (px: number, py: number) => ({ x: (px - 590) * K, z: (py - 418) 
 type XZ = { x: number; z: number };
 
 /** Tan rotary disc with five windows, on a hub column, with five nests on the spokes. */
-function createWindowDisc(m: Materials, radius: number, height: number) {
+function createWindowDisc(m: Materials, radius: number, height: number, pickStarts: readonly number[]) {
   const g = new THREE.Group();
   g.add(cylinder(radius * 0.22, radius * 0.26, height, m.robotGrey, 0, height / 2, 0));
   const shape = new THREE.Shape();
@@ -62,11 +65,13 @@ function createWindowDisc(m: Materials, radius: number, height: number) {
     hole.absarc(0, 0, radius * 0.32, a1, a0, true);
     shape.holes.push(hole);
   }
+  const rotor = new THREE.Group(); // everything that turns: the disc, its centre ring and the nests
+  g.add(rotor);
   const disc = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.015, bevelEnabled: false, curveSegments: 48 }), m.tan);
   disc.rotation.x = -Math.PI / 2;
   disc.position.y = height;
-  g.add(disc);
-  g.add(cylinder(0.05, 0.05, 0.02, m.red, 0, height + 0.025, 0, 24)); // centre index ring
+  rotor.add(disc);
+  rotor.add(cylinder(0.05, 0.05, 0.02, m.red, 0, height + 0.025, 0, 24)); // centre index ring
   for (let i = 0; i < windows; i++) {
     const a = (i / windows) * Math.PI * 2 + Math.PI / 2 + Math.PI / windows;
     const nest = new THREE.Group();
@@ -74,9 +79,16 @@ function createWindowDisc(m: Materials, radius: number, height: number) {
     nest.rotation.y = a;
     nest.add(box(0.07, 0.012, 0.09, m.accentBlue, 0, 0.006, 0));
     nest.add(box(0.03, 0.035, 0.03, m.dark, 0, 0.03, 0), box(0.012, 0.02, 0.012, m.red, 0.02, 0.04, 0.02));
-    g.add(nest);
+    rotor.add(nest);
   }
-  return g;
+  // Turns one window right after each pick from the disc (pickStarts: those robots' cycle starts)
+  const step = (Math.PI * 2) / windows;
+  rotor.userData.indexTable = true; // tooling finds the turning part by this
+  const update = (t: number) => {
+    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 1.2, step });
+  };
+  update(0);
+  return { object: g, update };
 }
 
 /** Open stand for an outside bowl feeder: blue extrusion frame, olive top plate, casters. */
@@ -195,16 +207,20 @@ export function createPickArmAssembly2(): MachineParts {
   hmi.position.set(-W / 2 - 0.04, 1.22, fromTop(0, 157).z);
   add(hmi);
 
-  // Stack light on the back-left corner of the roof: amber, red, green from the bottom
+  // Stack light on the back-left corner of the roof: green, amber, red from the bottom
   const sl = fromTop(128, 52);
   add(box(0.06, 0.02, 0.06, m.pink, sl.x, H + 0.01, sl.z), cylinder(0.012, 0.012, 0.12, m.pink, sl.x, H + 0.08, sl.z, 12));
-  [m.amber, m.red, m.pcb].forEach((mat, i) => add(cylinder(0.028, 0.028, 0.05, mat, sl.x, H + 0.17 + i * 0.052, sl.z, 20)));
+  ([[m.pcb, "green"], [m.amber, "amber"], [m.red, "red"]] as const).forEach(([mat, color], i) => add(markLamp(cylinder(0.028, 0.028, 0.05, mat, sl.x, H + 0.17 + i * 0.052, sl.z, 20), color)));
 
   // ── Rotary disc with five windows (centre px 612, 443, r 232 px) ────────
   const discAt = fromTop(612, 443);
-  const disc = createWindowDisc(m, 232 * K, 0.17);
-  disc.position.set(discAt.x, deckTop, discAt.z);
-  add(disc);
+  // The 6-axis arm picks from the disc (the SCARAs place onto it), so the disc turns right after each
+  // of the arm's picks. (Filled in when the arm is made below.)
+  const discPickStarts: number[] = [];
+  const disc = createWindowDisc(m, 232 * K, 0.17, discPickStarts);
+  disc.object.position.set(discAt.x, deckTop, discAt.z);
+  add(disc.object);
+  movers.push(disc);
 
   // ── Two SCARAs on pink pedestals, posed as drawn ───────────────────────
   const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; motion: Partial<RobotMotion> }[] = [
@@ -241,12 +257,13 @@ export function createPickArmAssembly2(): MachineParts {
   add(box(0.34, 0.012, 0.34, m.worktop, fromTop(935, 705).x, deckTop + 0.006, fromTop(935, 705).z));
   const armScale = 1.35;
   const reach = Math.hypot(armTarget.x - armBase.x, armTarget.z - armBase.z);
-  const arm = createSixAxisRobot(m, { ...sixAxisPose(reach / armScale, (0.17 + 0.05 + 0.22) / armScale), swing: [1.1], dip: 0.03 });
+  const arm = createSixAxisRobot(m, { ...sixAxisPose(reach / armScale, (0.17 + 0.05 + 0.22) / armScale), tool: "pcb", swing: [1.1], dip: 0.03 });
   arm.object.scale.setScalar(armScale);
   arm.object.position.set(armBase.x, deckTop + 0.012, armBase.z);
   arm.object.rotation.y = Math.atan2(-(armTarget.z - armBase.z), armTarget.x - armBase.x);
   add(arm.object);
   movers.push(arm);
+  discPickStarts.push(arm.object.userData.motion.offset * ROBOT_CYCLE);
 
   // ── Bowl feeders inside: green (left) and grey (back, under SCARA 1) ─────
   // (the grey one is lower so the back-left SCARA's arm passes over it)

@@ -16,6 +16,8 @@ export type Robot = {
   viedoURL: string;
   /** Machine in the 3D room this robot record belongs to (ROOM_LAYOUT id, e.g. "PAD-01"). */
   machineID: string;
+  /** Power state; switched to false automatically when updatedAt is over a minute old. */
+  robotPower?: boolean;
   /** ISO timestamp of the last save. */
   updatedAt?: string;
 };

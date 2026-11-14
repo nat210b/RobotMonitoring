@@ -45,7 +45,7 @@ function buildRoute() {
 const AGV_COUNT = 2; // robots running the route
 const SPEED = 0.9; // m/s
 const OFFSTAGE = 4; // s the robot stays away between leaving and re-entering
-const PATH_WIDTH = 0.22; // yellow guide tape (m)
+const PATH_WIDTH = 0.22; // orange guide tape (m)
 const FADE_DISTANCE = 0.9; // the robot grows / shrinks over this much path next to the room edge
 
 const smooth = (f: number) => {
@@ -102,7 +102,7 @@ export function createAgv() {
   return g;
 }
 
-/** Yellow guide tape along the route, a flat strip just above the floor. */
+/** Orange guide tape along the route, a flat strip just above the floor. */
 function createGuideTape(curve: THREE.CurvePath<THREE.Vector3>) {
   const pts = curve.getSpacedPoints(Math.ceil(curve.getLength() / 0.1));
   const positions: number[] = [];
@@ -121,12 +121,12 @@ function createGuideTape(curve: THREE.CurvePath<THREE.Vector3>) {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
   geo.setIndex(index);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xf5c518, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff8c1a, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
   return new THREE.Mesh(geo, mat);
 }
 
 /**
- * The transport robot and its yellow path. The robot follows the path, shrinks away as it leaves
+ * The transport robot and its orange path. The robot follows the path, shrinks away as it leaves
  * the room, stays out of sight for a few seconds, then grows back in at the entrance — forever.
  */
 export function createAgvRoute(): MachineParts {
