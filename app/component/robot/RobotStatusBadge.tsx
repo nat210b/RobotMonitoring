@@ -2,7 +2,7 @@ import { Badge, type BadgeTone } from "../ui";
 import type { RobotStatus } from "@/app/lib/robots";
 
 const TONES: Record<RobotStatus, BadgeTone> = {
-  PASS: "brand",
+  PASS: "success",
   FAIL: "danger",
   MAINTAIN: "warning",
 };

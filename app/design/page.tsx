@@ -5,13 +5,17 @@ import {
   Badge,
   Button,
   Card,
+  Clock,
   Col,
   DataTable,
   DatePicker,
   Grid,
   Input,
+  Modal,
   Pagination,
   Select,
+  StatCard,
+  Toggle,
   type Column,
 } from "../component/ui";
 import FeedRollerGearClusterAssembly, { feedRollerGearClusterAssembly } from "../component/machine/FeedRollerGearClusterAssembly";
@@ -21,6 +25,7 @@ import PhotoTrayAssembly, { photoTrayAssembly } from "../component/machine/Photo
 import PickArmAssembly1, { pickArmAssembly1 } from "../component/machine/PickArmAssembly1";
 import PickArmAssembly2, { pickArmAssembly2 } from "../component/machine/PickArmAssembly2";
 import PickDriveAssembly, { pickDriveAssembly } from "../component/machine/PickDriveAssembly";
+import PillarSidePlateLeftAssembly, { pillarSidePlateLeftAssembly } from "../component/machine/PillarSidePlateLeftAssembly";
 import PulleyTurnaroundAssembly, { pulleyTurnaroundAssembly } from "../component/machine/PulleyTurnaroundAssembly";
 import UpgAssembly, { upgAssembly } from "../component/machine/UpgAssembly";
 import Link from "next/link";
@@ -71,6 +76,9 @@ const sectionDescriptionClass = "mb-5 text-sm text-muted";
 
 export default function Home() {
   const [page, setPage] = useState(2);
+  const [togglePower, setTogglePower] = useState(true);
+  const [toggleMix, setToggleMix] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [signature, setSignatureStatus] = useSignatureStatus();
   const signatureReady = signature === "ready";
 
@@ -96,6 +104,22 @@ export default function Home() {
         </header>
 
         <div className="space-y-10">
+          <section className={sectionClass} aria-labelledby="identity-title">
+            <h2 id="identity-title" className={sectionTitleClass}>Product identity & shell</h2>
+            <p className={sectionDescriptionClass}>Shared across the live room and presentation routes; the viewport shell keeps the room visible between its header and footer.</p>
+            <Card title="Application frame" description="Responsive, one-viewport dashboard shell">
+              <div className="overflow-hidden border border-line">
+                <div className="hud-bar flex flex-wrap items-center justify-between gap-3 border-b border-brand/50 px-4 py-3">
+                  <div className="flex items-center gap-3"><AppIcon className="size-9" /><div><p className="hud-title text-xs font-bold">CP-Innovation</p><p className="hud-title text-[10px] text-brand">AI Team</p></div><p className="border-l border-line pl-3 text-sm font-semibold">Robot Combined Room</p></div>
+                  <TeamBadge />
+                </div>
+                <div className="grid min-h-28 place-items-center bg-surface-2 p-4 text-sm text-muted">Three.js room workspace · flexible content area</div>
+                <div className="hud-bar flex items-center gap-3 border-t border-brand/50 px-4 py-2 text-xs text-muted"><AppIcon className="size-6" /><span>Developed by CP-Innovation · AI Team · ID: AU004 · v{signatureApp.version} · BuildID: {"<build id>"}</span></div>
+              </div>
+              <p className="mt-3 text-xs text-muted">Header and footer stay fixed; the workspace fills the remaining height. At narrow widths, controls wrap and panels stack.</p>
+            </Card>
+          </section>
+
           <section className={sectionClass} aria-labelledby="machines-title">
             <h2 id="machines-title" className={sectionTitleClass}>Machines</h2>
             <p className={sectionDescriptionClass}>Three.js models built from the machine drawings. Drag to rotate, scroll to zoom.</p>
@@ -120,6 +144,9 @@ export default function Home() {
             <Card className="mt-4" title={pickDriveAssembly.name} description="3 SCARA robots · 3 bowl feeders · escapement · discharge chute · 3 power supplies">
               <PickDriveAssembly height={520} />
             </Card>
+            <Card className="mt-4" title={pillarSidePlateLeftAssembly.name} description="2 SCARA robots · 2 bowl feeders · 4 tray nests · glass enclosure on casters · HMI · stack light">
+              <PillarSidePlateLeftAssembly height={520} />
+            </Card>
             <Card className="mt-4" title={pulleyTurnaroundAssembly.name} description="2 SCARA robots · rotary table · 2 bowl feeders · drum bulk feeder · HMI with keyboard">
               <PulleyTurnaroundAssembly height={520} />
             </Card>
@@ -137,11 +164,12 @@ export default function Home() {
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {[
                       ["Brand", "bg-brand", "#38BDF8"],
-                      ["Brand soft", "bg-brand-soft", "#EEF6E1"],
-                      ["Surface", "bg-surface-2", "#F6F8F5"],
+                      ["Brand soft", "bg-brand-soft", "#E3F4FD"],
+                      ["Surface", "bg-surface-2", "#F5F8FD"],
+                      ["Success", "bg-success", "#16A34A"],
                       ["Danger", "bg-danger", "#D64545"],
                       ["Warning", "bg-warning", "#D98E04"],
-                      ["Info", "bg-info", "#2F7FC1"],
+                      ["Info", "bg-info", "#6366F1"],
                     ].map(([name, color, hex]) => (
                       <div key={name} className="overflow-hidden rounded-control border border-line">
                         <div className={`h-12 ${color}`} />
@@ -161,11 +189,23 @@ export default function Home() {
                     <div className="grid grid-cols-3 gap-2 text-center text-xs">
                       {["bg-surface", "bg-surface-2", "bg-surface-3"].map((color, i) => <div key={color} className={`rounded-control border border-line p-3 ${color}`}>Surface {i + 1}</div>)}
                     </div>
-                    <code className="block rounded-control bg-surface-2 px-3 py-2 font-mono text-xs text-muted">--radius-control: 8px</code>
+                    <code className="block rounded-control bg-surface-2 px-3 py-2 font-mono text-xs text-muted">--radius-card: 0px · --radius-control: 0px</code>
                   </div>
                 </Card>
               </Col>
             </Grid>
+          </section>
+
+          <section className={sectionClass} aria-labelledby="status-colors-title">
+            <h2 id="status-colors-title" className={sectionTitleClass}>Robot status colors</h2>
+            <p className={sectionDescriptionClass}>Status is communicated with both a label and color. PASS is green; FAIL is red.</p>
+            <Card title="Inspection states" description="Use semantic status tokens for badges, log cards and indicators">
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge tone="success" solid>PASS</Badge><span className="font-mono text-xs text-muted">--success: #16A34A</span>
+                <Badge tone="danger" solid>FAIL</Badge><span className="font-mono text-xs text-muted">--danger: #D64545</span>
+                <Badge tone="warning" solid>MAINTAIN</Badge><span className="font-mono text-xs text-muted">--warning: #D98E04</span>
+              </div>
+            </Card>
           </section>
 
           <section className={sectionClass} aria-labelledby="buttons-title">
@@ -185,7 +225,7 @@ export default function Home() {
               <Col md={5}>
                 <Card title="Badges" description="Semantic tones for states and metadata">
                   <div className="flex flex-wrap gap-2">
-                    <Badge tone="brand">Online</Badge><Badge tone="neutral">Idle</Badge><Badge tone="warning">Charging</Badge><Badge tone="danger">Needs attention</Badge><Badge tone="info">In transit</Badge>
+                    <Badge tone="brand">Online</Badge><Badge tone="success">PASS</Badge><Badge tone="neutral">Idle</Badge><Badge tone="warning">Charging</Badge><Badge tone="danger">Needs attention</Badge><Badge tone="info">In transit</Badge>
                   </div>
                 </Card>
               </Col>
@@ -211,6 +251,46 @@ export default function Home() {
                 </Col>
               </Grid>
             </Card>
+          </section>
+
+          <section className={sectionClass} aria-labelledby="controls-title">
+            <h2 id="controls-title" className={sectionTitleClass}>Toggles, counts, clock & modal</h2>
+            <p className={sectionDescriptionClass}>HUD switch, stat cards, live clock and the native-dialog modal with a pinned footer.</p>
+            <Grid gap={16}>
+              <Col md={6}>
+                <Card title="Toggle" description="role=switch; Space or Enter toggles it. Sizes: md and sm.">
+                  <div className="space-y-2">
+                    <Toggle label="Robot power" hint="Shown as ON on the room view" checked={togglePower} onChange={setTogglePower} />
+                    <Toggle label="Mix with real logs" checked={toggleMix} onChange={setToggleMix} />
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <Toggle size="sm" label="PHT-01" checked={togglePower} onChange={setTogglePower} />
+                      <Toggle size="sm" label="UPG-07" checked={toggleMix} onChange={setToggleMix} />
+                      <Toggle size="sm" label="Disabled" checked={false} onChange={() => {}} disabled />
+                    </div>
+                  </div>
+                </Card>
+              </Col>
+              <Col md={6}>
+                <Card title="StatCard & Clock" description="PASS / FAIL counts and the live header clock">
+                  <div className="flex gap-3"><StatCard label="Pass" value={48} tone="success" className="flex-1" /><StatCard label="Fail" value={2} tone="danger" className="flex-1" /></div>
+                  <div className="mt-5 flex justify-end border-t border-line pt-5"><Clock /></div>
+                </Card>
+              </Col>
+              <Col md={12}>
+                <Card title="Modal" description="Native dialog: focus, Escape and inert background are handled. Optional width, height and a pinned footer.">
+                  <Button onClick={() => setModalOpen(true)} aria-haspopup="dialog">Open modal</Button>
+                  <Modal
+                    open={modalOpen}
+                    onClose={() => setModalOpen(false)}
+                    title="Modal with footer"
+                    description="The body scrolls; the footer stays visible."
+                    footer={<div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button><Button onClick={() => setModalOpen(false)}>Confirm</Button></div>}
+                  >
+                    <p className="text-sm text-muted">Content goes here. Long content scrolls inside the body while the header and footer stay put.</p>
+                  </Modal>
+                </Card>
+              </Col>
+            </Grid>
           </section>
 
           <section className={sectionClass} aria-labelledby="cards-title">

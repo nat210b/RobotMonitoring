@@ -91,7 +91,7 @@ export function SettingsPanel({ settings, onChange, onClose, className }: { sett
             icon={<PulseIcon />}
             selected={settings.showMachineStatus}
             onClick={() => onChange({ showMachineStatus: !settings.showMachineStatus })}
-            preview={<span className="bg-brand px-2 py-0.5 text-[10px] font-bold text-white">PASS</span>}
+            preview={<span className="bg-success px-2 py-0.5 text-[10px] font-bold text-white">PASS</span>}
           />
         </div>
       </section>

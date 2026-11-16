@@ -14,6 +14,8 @@ import { markAppReady } from "../signature/CpaiSplash";
 import { MachineOverview } from "./MachineOverview";
 import { RobotStatusLog } from "../robot/RobotStatusLog";
 import { RobotSidebar } from "../robot/RobotSidebar";
+import { StatusLogForm } from "../robot/StatusLogForm";
+import { PRESENTATION_LOGS_KEY, PRESENTATION_MIX_KEY, PRESENTATION_RUNS_KEY, readPresentationLogs, readPresentationMix, readPresentationRuns, writePresentationLogs, type PresentationRun } from "@/app/lib/presentationLogs";
 import Room from "./room";
 
 /** Every robot record, keyed by the machine it belongs to. */
@@ -27,8 +29,8 @@ async function fetchRobots(): Promise<Map<string, Robot>> {
 const errorText = (err: unknown) => (err instanceof Error ? err.message : "Could not load robots.");
 
 /** Room page body: clickable 3D room filling the area, with the robot side bar floating over its left edge. */
-export default function RoomWorkspace() {
-  const [robots, setRobots] = useState<Map<string, Robot>>(new Map());
+export default function RoomWorkspace({ presentation = false }: { presentation?: boolean }) {
+  const [liveRobots, setRobots] = useState<Map<string, Robot>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,6 +82,67 @@ export default function RoomWorkspace() {
 
   // Inspection results for the status log, refreshed every 30 s. A failed load keeps the last list.
   const [logs, setLogs] = useState<RobotStatusLogEntry[]>([]);
+  const [presentationLogs, setPresentationLogs] = useState<RobotStatusLogEntry[]>([]);
+  const [presentationReady, setPresentationReady] = useState(false);
+  const [logFormOpen, setLogFormOpen] = useState(false);
+  // A generated log is shown only once its time has come, so logs timed in the future appear one by one
+  // during the presentation (the status log animates each new one in). Checked every second.
+  // Starts at 0 (nothing due) and is set from the clock after mount, since reading the time while rendering
+  // would freeze it into the prerendered page.
+  const [now, setNow] = useState(0);
+  const [presentationRuns, setPresentationRuns] = useState<PresentationRun[]>([]);
+  // Wake up only when something becomes due (a log's time or a run's start), instead of ticking every second,
+  // so the room and the lists are not re-rendered for nothing. The first wake-up (now = 0) sets the clock.
+  useEffect(() => {
+    if (!presentation) return;
+    let delay = 0;
+    if (now > 0) {
+      const upcoming = [...presentationLogs.map((log) => Date.parse(log.datetime)), ...presentationRuns.map((run) => run.start)].filter((t) => t > now);
+      if (!upcoming.length) return;
+      delay = Math.min(Math.max(Math.min(...upcoming) - Date.now(), 0) + 20, 2 ** 31 - 1);
+    }
+    const timer = setTimeout(() => setNow(Date.now()), delay);
+    return () => clearTimeout(timer);
+  }, [presentation, now, presentationLogs, presentationRuns]);
+  const [mixReal, setMixReal] = useState(true);
+  // On /show, every robot switched on in a "Generate logs" run turns ON at that run's start time, and a machine
+  // with no robot record gets a stand-in robot (robotID = the machine id, e.g. "PHT-01") so it can be switched
+  // on and appear in the logs too. Display only: nothing is saved to the database.
+  // Robot ids of the runs that have started; a string so the robots below are rebuilt only when it changes,
+  // not on every tick of the clock.
+  const startedKey = useMemo(
+    () => [...new Set(presentationRuns.filter((run) => run.start <= now).flatMap((run) => run.robotIds))].sort().join("|"),
+    [presentationRuns, now],
+  );
+  // Status each robot would have if the presentation logs that are already due were real (same rules as the
+  // live log): the latest result PASS -> PASS, FAIL -> FAIL, five FAILs in a row -> MAINTAIN. Display only.
+  // A string ("RB-001=FAIL|RB-002=PASS") so nothing downstream is rebuilt unless a status actually changes.
+  const mockStatusKey = useMemo(() => {
+    const byRobot = new Map<string, string[]>();
+    [...presentationLogs]
+      .filter((log) => Date.parse(log.datetime) <= now)
+      .sort((a, b) => b.datetime.localeCompare(a.datetime))
+      .forEach((log) => {
+        const list = byRobot.get(log.robot_id) ?? [];
+        if (list.length < 5) byRobot.set(log.robot_id, [...list, log.status]);
+      });
+    return [...byRobot]
+      .map(([id, list]) => `${id}=${list.length === 5 && list.every((x) => x === "FAIL") ? "MAINTAIN" : list[0]}`)
+      .sort()
+      .join("|");
+  }, [presentationLogs, now]);
+  const robots = useMemo(() => {
+    if (!presentation) return liveRobots;
+    const started = new Set(startedKey ? startedKey.split("|") : []);
+    const mockStatus = new Map(mockStatusKey ? mockStatusKey.split("|").map((pair) => pair.split("=") as [string, Robot["robotStatus"]]) : []);
+    const show = (r: Robot): Robot => ({ ...r, robotPower: started.has(r.robotID) ? true : r.robotPower, robotStatus: mockStatus.get(r.robotID) ?? r.robotStatus });
+    const next = new Map([...liveRobots].map(([id, r]): [string, Robot] => [id, show(r)]));
+    for (const m of ROOM_LAYOUT) {
+      if (next.has(m.id)) continue;
+      next.set(m.id, { runningNo: 0, robotID: m.id, robotName: "", robotStatus: mockStatus.get(m.id) ?? "PASS", desc: "", viedoURL: "", machineID: m.id, robotPower: started.has(m.id) });
+    }
+    return next;
+  }, [presentation, liveRobots, startedKey, mockStatusKey]);
   useEffect(() => {
     let active = true;
     const load = () =>
@@ -94,6 +157,55 @@ export default function RoomWorkspace() {
       clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!presentation || loading || liveRobots.size === 0 || presentationReady) return;
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time load of the saved mock log */
+    setPresentationRuns(readPresentationRuns());
+    setMixReal(readPresentationMix());
+    const saved = readPresentationLogs();
+    if (saved) {
+      setPresentationLogs(saved);
+    } else {
+      const robotIds = [...liveRobots.values()].map((robot) => robot.robotID);
+      setPresentationLogs(Array.from({ length: 50 }, (_, i) => ({
+        id: `mock-${i}`,
+        robot_id: robotIds[i % robotIds.length],
+        status: i === 0 ? "FAIL" as const : "PASS" as const,
+        failDetail: i === 0 ? "Mock sensor alignment warning" : "",
+        datetime: new Date(Date.now() - i * 60 * 60_000).toISOString(),
+      })));
+    }
+    setPresentationReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [presentation, loading, liveRobots, presentationReady]);
+  useEffect(() => {
+    if (presentation && presentationReady) writePresentationLogs(presentationLogs);
+  }, [presentation, presentationReady, presentationLogs]);
+  // Newest first, so the logs already due are always the tail of the list.
+  const sortedPresentationLogs = useMemo(() => [...presentationLogs].sort((a, b) => b.datetime.localeCompare(a.datetime)), [presentationLogs]);
+  const dueCount = useMemo(() => sortedPresentationLogs.filter((log) => Date.parse(log.datetime) <= now).length, [sortedPresentationLogs, now]);
+  // Rebuilt only when another log falls due, not on every tick, so the status log doesn't re-render each second.
+  const visiblePresentationLogs = useMemo(
+    () => (dueCount === sortedPresentationLogs.length ? sortedPresentationLogs : sortedPresentationLogs.slice(sortedPresentationLogs.length - dueCount)),
+    [sortedPresentationLogs, dueCount],
+  );
+  // The mock logs that are due, mixed with the real ones (newest first) unless the modal switched mixing off.
+  const shownLogs = useMemo(
+    () => (mixReal ? [...visiblePresentationLogs, ...logs].sort((a, b) => b.datetime.localeCompare(a.datetime)) : visiblePresentationLogs),
+    [mixReal, visiblePresentationLogs, logs],
+  );
+  // Logs generated on the main route in another tab show up here straight away.
+  useEffect(() => {
+    if (!presentation) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PRESENTATION_LOGS_KEY) setPresentationLogs(readPresentationLogs() ?? []);
+      if (e.key === PRESENTATION_RUNS_KEY) setPresentationRuns(readPresentationRuns());
+      if (e.key === PRESENTATION_MIX_KEY) setMixReal(readPresentationMix());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [presentation]);
 
   // Uploaded videos, one per machine type. A failed load just means no videos are shown.
   const [videos, setVideos] = useState<Map<string, MachineVideo>>(new Map());
@@ -168,16 +280,22 @@ export default function RoomWorkspace() {
   );
 
 
+
+  // PASS / FAIL totals of the logs on screen (the mock + real mix on /show, the live log on the main route)
+  const listedLogs = presentation ? shownLogs : logs;
+  const passCount = useMemo(() => listedLogs.filter((log) => log.status === "PASS").length, [listedLogs]);
+  const failCount = useMemo(() => listedLogs.filter((log) => log.status === "FAIL").length, [listedLogs]);
+
   return (
     <div className="relative min-h-[320px] flex-1 overflow-hidden">
       {/* overflow-hidden: the Settings drawer slides out past the right edge; clip it instead of scrolling the page */}
       {/* The 3D room always fills the whole area, so opening the side bar never resizes or moves it. */}
       <Room fill className="absolute inset-0" onSelect={setSelectedId} selectedId={selectedId} badges={badges} showZones={settings.showHighlight} view={view} lamps={lamps} zoneAlerts={problemSections} />
       {/* Overview (chart + ON / OFF table) down the left edge; the robot side bar takes its place while a machine is selected. */}
-      {!selectedId && <MachineOverview className="absolute top-3 bottom-3 left-3 z-10 hidden w-[27rem] max-w-[calc(100%-1.5rem)] md:flex" onSelect={setSelectedId} power={power} robots={robots} />}
+      {!selectedId && <MachineOverview className="absolute top-3 bottom-3 left-3 z-10 hidden w-[27rem] max-w-[calc(100%-1.5rem)] md:flex" onSelect={setSelectedId} power={power} robots={robots} passCount={passCount} failCount={failCount} />}
       {/* Status log down the right edge (md up), under the top-right row; the settings drawer covers it. */}
       <div className="pointer-events-none absolute top-14 right-3 bottom-3 z-10 hidden w-[37rem] max-w-[calc(100%-1.5rem)] flex-col items-end md:flex">
-        <RobotStatusLog logs={logs} className="min-h-0 w-full flex-1" robots={robots} selectedId={selectedId} onSelect={setSelectedId} />
+        <RobotStatusLog logs={listedLogs} className="min-h-0 w-full flex-1" robots={robots} selectedId={selectedId} onSelect={setSelectedId} />
       </div>
       {/* Top-right row: camera view (iso / top-down with rotation locked, or free orbit) beside the Settings button. */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
@@ -191,11 +309,26 @@ export default function RoomWorkspace() {
             { value: "free", label: "Free" },
           ]}
         />
+        {!presentation && (
+          <Button variant="secondary" size="sm" className="shadow-md" aria-haspopup="dialog" onClick={() => setLogFormOpen(true)}>
+            Generate logs
+          </Button>
+        )}
         {/* Toggles the drawer; marked so a press on it isn't taken as a click outside the open drawer */}
         <Button variant="secondary" size="sm" className="shadow-md" data-dismiss-ignore onClick={() => setSettingsOpen((open) => !open)} aria-label={settingsOpen ? "Close settings" : "Open settings"} aria-expanded={settingsOpen}>
           <GearIcon />
         </Button>
       </div>
+      {/* Mounted only while open, so the form starts fresh each time */}
+      {!presentation && logFormOpen && (
+        <StatusLogForm
+          onClose={() => setLogFormOpen(false)}
+          robots={ROOM_LAYOUT.map((m) => {
+            const r = robots.get(m.id);
+            return { machineId: m.id, id: r?.robotID ?? m.id, name: r?.robotName ?? "", on: r?.robotPower === true, showOnly: !r };
+          })}
+        />
+      )}
       {settingsDrawer.mounted && (
         <SettingsPanel
           className={cn(
@@ -211,6 +344,7 @@ export default function RoomWorkspace() {
           screens, down the left edge from md up. A tall form scrolls inside it. */}
       {selectedId && (
         <RobotSidebar
+          readOnly={presentation}
           className="absolute inset-x-0 top-0 z-10 max-h-[60%] shadow-lg md:inset-x-auto md:bottom-0 md:left-0 md:max-h-none"
           machineId={selectedId}
           robot={robots.get(selectedId)}

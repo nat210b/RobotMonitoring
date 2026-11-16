@@ -43,6 +43,9 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+To use a different port, set `PORT` in `.env` (for example, `PORT=3001`). The
+`dev` and `start` scripts load `.env` before starting Next.js so the setting
+takes effect.
 
 ## Available scripts
 

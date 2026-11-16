@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { Robot } from "@/app/lib/robots";
-import { Badge, BarChart, DataTable, DonutChart, cn, type Column } from "../ui";
+import { Badge, BarChart, DataTable, DonutChart, StatCard, cn, type Column } from "../ui";
 import { ROOM_LAYOUT, ROOM_SECTIONS } from "./floorPlan";
 
 type MachinePower = "ON" | "OFF";
@@ -37,7 +37,7 @@ const COLUMNS: Column<Row>[] = [
  * Left-hand overview: ring chart of how many machines are ON, a bar per section, and a table of
  * every machine's ON / OFF state, taken from each robot's robotPower (no robot or no value counts as OFF).
  */
-export function MachineOverview({ onSelect, power, robots, className }: { onSelect: (machineId: string) => void; power: Record<string, boolean | undefined>; /** Robot records keyed by machine id. */ robots: Map<string, Robot>; className?: string }) {
+export function MachineOverview({ onSelect, power, robots, passCount, failCount, className }: { onSelect: (machineId: string) => void; /** PASS / FAIL totals of the status log; the two cards are shown under the ring chart when both are given. */ passCount?: number; failCount?: number; power: Record<string, boolean | undefined>; /** Robot records keyed by machine id. */ robots: Map<string, Robot>; className?: string }) {
   const { rows, on, sections } = useMemo(() => {
     // Default order: machines that have a robot record first (ON before OFF), machines with no value last.
     // Array.sort is stable, so each group keeps the room layout order; header clicks still re-sort.
@@ -85,6 +85,13 @@ export function MachineOverview({ onSelect, power, robots, className }: { onSele
           </li>
         </ul>
       </div>
+
+      {passCount !== undefined && failCount !== undefined && (
+        <div className="flex gap-3">
+          <StatCard label="Pass" value={passCount} tone="success" className="flex-1" />
+          <StatCard label="Fail" value={failCount} tone="danger" className="flex-1" />
+        </div>
+      )}
 
       <BarChart
         labels={sections.map((s) => `${s.label}  ${s.on}/${s.total}`)}

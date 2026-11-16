@@ -20,7 +20,7 @@ const KEY = "robot-monitoring-settings";
 
 const systemTheme = (): Theme => (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 
-const DEFAULTS: Omit<Settings, "theme"> = { showHighlight: true, showSectionNames: true, showPowerIcons: true, showMachineStatus: false };
+const DEFAULTS: Omit<Settings, "theme"> = { showHighlight: true, showSectionNames: true, showPowerIcons: false, showMachineStatus: false };
 
 /** Room view + theme settings, remembered in localStorage and applied to <html data-theme>. */
 export function useSettings() {

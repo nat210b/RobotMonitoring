@@ -23,6 +23,9 @@
   --border: #b6dcf2;
 
   /* status */
+  --success: #16a34a;
+  /* lighter green for text and dots on dark panels */
+  --success-light: #22c55e;
   --danger: #d64545;
   --warning: #d98e04;
   --info: #6366f1;
@@ -54,6 +57,7 @@
     --foreground: #e8eef2;
     --border: #1f5c85;
     --hud-glow: color-mix(in srgb, var(--brand) 30%, transparent);
+    --success-light: #4ade80;
   }
 }
 
@@ -66,6 +70,7 @@
   --foreground: #e8eef2;
   --border: #1f5c85;
   --hud-glow: color-mix(in srgb, var(--brand) 30%, transparent);
+  --success-light: #4ade80;
 }
 
 @theme inline {
@@ -81,6 +86,8 @@
   --color-on-brand: var(--on-brand);
   --color-muted: var(--muted);
   --color-line: var(--border);
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
   --color-info: var(--info);
@@ -183,6 +190,15 @@ body {
     0 0 10px 1px color-mix(in srgb, var(--danger) 80%, transparent),
     0 0 30px 4px color-mix(in srgb, var(--danger) 45%, transparent),
     inset 0 0 14px color-mix(in srgb, var(--danger) 25%, transparent);
+}
+/* Green variant of .hud (outline, tint, glow), e.g. a passed inspection. */
+.hud-success {
+  --hud-accent: var(--success);
+  --hud-glow: color-mix(in srgb, var(--success) 30%, transparent);
+  --hud-fill: color-mix(in srgb, var(--success) 8%, var(--surface));
+}
+.hud-glass.hud-success {
+  --neon: var(--success);
 }
 .hud::before,
 .hud::after {

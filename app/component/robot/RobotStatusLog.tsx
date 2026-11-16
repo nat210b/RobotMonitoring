@@ -7,28 +7,42 @@ import { ROOM_LAYOUT, ROOM_SECTIONS, type MachineType } from "../room/floorPlan"
 import { renderMachineThumbnails } from "../room/thumbnail";
 import { cn } from "../ui";
 
-/** Picture of each machine type's 3D model, rendered once in the browser. */
-function useThumbnails(types: MachineType[]) {
-  const [pics, setPics] = useState<Map<MachineType, string>>(new Map());
-  const key = [...new Set(types)].sort().join("|");
+/** Pictures of every machine type, rendered once per page load and kept (see useThumbnails). */
+let thumbnailCache: Map<MachineType, string> | null = null;
+
+/**
+ * Picture of each machine type's 3D model. Building the models and rendering them needs a second WebGL
+ * context and takes a while, so it is done ONCE for all types, when the browser is idle, and cached. It used
+ * to be redone for every new set of machine types in the list, which froze the page as logs came in.
+ */
+function useThumbnails() {
+  const [pics, setPics] = useState<Map<MachineType, string>>(thumbnailCache ?? new Map());
   useEffect(() => {
-    if (!key) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPics(renderMachineThumbnails(key.split("|") as MachineType[]));
-  }, [key]);
+    if (thumbnailCache) return;
+    const run = () => {
+      thumbnailCache = renderMachineThumbnails(ROOM_LAYOUT.map((m) => m.type));
+      setPics(thumbnailCache);
+    };
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(run, { timeout: 1500 });
+      return () => cancelIdleCallback(id);
+    }
+    const id = setTimeout(run, 200);
+    return () => clearTimeout(id);
+  }, []);
   return pics;
 }
 
-const formatDay = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+const formatDay = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 const formatClock = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /** Status text colour and its leading dot. */
-const STATUS_TONE: Record<string, { text: string; dot: string; ring: string; line: string; glow: string }> = {
-  PASS: { text: "text-brand", dot: "bg-brand", ring: "border-brand", line: "bg-brand/70", glow: "shadow-[0_0_8px_var(--brand)]" },
-  FAIL: { text: "text-danger", dot: "bg-danger", ring: "border-danger", line: "bg-danger/70", glow: "shadow-[0_0_8px_var(--danger)]" },
-  MAINTAIN: { text: "text-warning", dot: "bg-warning", ring: "border-warning", line: "bg-warning/70", glow: "shadow-[0_0_8px_var(--warning)]" },
+const STATUS_TONE: Record<string, { text: string; dot: string; ring: string; line: string; glow: string; tab: string; edge: string }> = {
+  PASS: { text: "text-success-light", dot: "bg-success-light", ring: "border-success", line: "bg-success/70", glow: "shadow-[0_0_8px_var(--success)]", tab: "border-success/60 bg-success/10 text-success-light", edge: "border-success/40" },
+  FAIL: { text: "text-danger", dot: "bg-danger", ring: "border-danger", line: "bg-danger/70", glow: "shadow-[0_0_8px_var(--danger)]", tab: "border-danger/60 bg-danger/10 text-danger", edge: "border-danger/40" },
+  MAINTAIN: { text: "text-warning", dot: "bg-warning", ring: "border-warning", line: "bg-warning/70", glow: "shadow-[0_0_8px_var(--warning)]", tab: "border-warning/60 bg-warning/10 text-warning", edge: "border-warning/40" },
 };
-const FALLBACK_TONE = { text: "text-muted", dot: "bg-muted", ring: "border-muted", line: "bg-muted/70", glow: "" };
+const FALLBACK_TONE = { text: "text-muted", dot: "bg-muted", ring: "border-muted", line: "bg-muted/70", glow: "", tab: "border-brand/60 bg-brand-soft text-brand", edge: "border-line" };
 
 /** Section name of each machine, for the expanded card. */
 const SECTION_OF = new Map(ROOM_SECTIONS.flatMap((s) => s.machineIds.map((id) => [id, s.label] as const)));
@@ -45,6 +59,10 @@ const Field = ({ label, value, className }: { label: string; value: string; clas
  *  expanded width and the card clips it, so widening the card reveals the extra columns. */
 /** Time between one new entry going in and the next. */
 const STEP_MS = 650;
+/** Cards drawn at first, and added by each "Show more": every card is a blurred, clipped glass panel, so drawing hundreds is slow. */
+const PAGE_SIZE = 40;
+/** More new entries than this at once count as a bulk arrival and are shown without animation. */
+const BULK = 3;
 const COMPACT_W = "w-[16.5rem]";
 const EXPANDED_W = "w-[34rem]";
 
@@ -60,6 +78,7 @@ export function RobotStatusLog({
   robots,
   selectedId,
   onSelect,
+  onEdit,
   className,
 }: {
   logs: RobotStatusLogEntry[];
@@ -67,6 +86,7 @@ export function RobotStatusLog({
   robots: Map<string, Robot>;
   selectedId: string | null;
   onSelect: (machineId: string) => void;
+  onEdit?: (log: RobotStatusLogEntry) => void;
   className?: string;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -100,7 +120,8 @@ export function RobotStatusLog({
       if (fresh.length) {
         setSeen(new Set([...seen, ...fresh]));
         const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        if (!reduce) setPending(new Set([...pending, ...fresh]));
+        // A few new entries are let in one by one; a bulk arrival (a run starting in the past, "Show more") is not queued
+        if (!reduce && fresh.length <= BULK) setPending(new Set([...pending, ...fresh]));
       }
     }
   }
@@ -120,17 +141,20 @@ export function RobotStatusLog({
   }, [pending, allRows]);
   const rows = useMemo(() => (pending.size ? allRows.filter((r) => !pending.has(r.log.id)) : allRows), [allRows, pending]);
 
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const shown = useMemo(() => rows.slice(0, limit), [rows, limit]);
+
   const days = useMemo(() => {
     const groups: { day: string; items: typeof rows }[] = [];
-    for (const row of rows) {
+    for (const row of shown) {
       const day = formatDay(row.log.datetime);
       const last = groups[groups.length - 1];
       if (last?.day === day) last.items.push(row);
       else groups.push({ day, items: [row] });
     }
     return groups;
-  }, [rows]);
-  const pics = useThumbnails(rows.map((r) => r.machine.type));
+  }, [shown]);
+  const pics = useThumbnails();
 
   // When the list changes, slide the existing entries down to their new place and ease new ones in
   // from above (FLIP: measure the old position, then animate from it to the new one).
@@ -148,6 +172,10 @@ export function RobotStatusLog({
     if (prev && prev.size > 0 && !reduce) { // prev empty = the initial load, nothing to animate from
       const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
       const fresh = [...itemRefs.current].filter(([id]) => !prev.has(id)).map(([, el]) => el);
+      if (fresh.length > BULK) { // bulk: skip the slide-in animations (dozens of staggered animations are slow)
+        prevPos.current = next;
+        return;
+      }
       itemRefs.current.forEach((el, id) => {
         const before = prev.get(id);
         const after = next.get(id)!;
@@ -167,7 +195,7 @@ export function RobotStatusLog({
       });
     }
     prevPos.current = next;
-  }, [rows]);
+  }, [shown]);
 
   return (
     <aside className={cn("pointer-events-none flex min-h-0 flex-col items-end text-foreground", className)}>
@@ -205,24 +233,25 @@ export function RobotStatusLog({
                         aria-expanded={open}
                         data-selected={selected || undefined}
                         aria-label={`Robot ${robot.robotID}: ${log.status}, ${new Date(log.datetime).toLocaleString()}`}
-                        onClick={() => {
+                          onClick={() => {
                           setOpenId(open ? null : log.id);
                           onSelect(machine.id);
                         }}
                         className={cn(
                           log.status === "FAIL" && "hud-danger",
+                          log.status === "PASS" && "hud-success",
                           "hud hud-glass pointer-events-auto block overflow-hidden border text-left text-xs text-foreground",
                           // Literal class names (Tailwind can't see built-up strings); keep in step with EXPANDED_W.
                           "transition-[width,border-color] duration-(--duration-slow) ease-ui group-focus-within:w-[34rem] group-hover:w-[34rem]",
                           open ? EXPANDED_W : COMPACT_W,
-                          selected || log.status === "FAIL" ? tone.ring : "border-brand/50",
+                          selected || log.status === "FAIL" || log.status === "PASS" ? tone.ring : "border-brand/50",
                         )}
                       >
                         <span className={cn("flex", EXPANDED_W)}>
                           {/* Left column: robot ID tab over the machine picture */}
-                          <span className="flex w-28 shrink-0 flex-col gap-1.5 border-r border-line p-2">
-                            <span className="block truncate border border-brand/60 bg-brand-soft px-1.5 py-0.5 text-center text-sm font-semibold text-brand">{robot.robotID}</span>
-                            <span className="grid h-[4.5rem] place-items-center overflow-hidden border border-line bg-surface-3/60">
+                          <span className={cn("flex w-28 shrink-0 flex-col gap-1.5 border-r p-2", tone.edge)}>
+                            <span className={cn("block truncate border px-1.5 py-0.5 text-center text-sm font-semibold", tone.tab)}>{robot.robotID}</span>
+                            <span className={cn("grid h-[4.5rem] place-items-center overflow-hidden border bg-surface-3/60", tone.edge)}>
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               {pics.get(machine.type) && <img src={pics.get(machine.type)} alt="" className="size-full object-contain" />}
                             </span>
@@ -245,7 +274,7 @@ export function RobotStatusLog({
                           {/* Extra columns, revealed as the card widens */}
                           <span className="grid min-w-0 flex-1 grid-cols-2 content-start gap-x-4 gap-y-1.5 py-2 pr-3">
                             {/* Section name: centred tab across the top, wrapping so long names stay whole */}
-                            <span className="col-span-2 mb-0.5 block border border-brand/60 bg-brand-soft px-2 py-0.5 text-center text-sm leading-snug font-semibold break-words text-brand">
+                            <span className={cn("col-span-2 mb-0.5 block border px-2 py-0.5 text-center text-sm leading-snug font-semibold break-words", tone.tab)}>
                               {SECTION_OF.get(machine.id) ?? "—"}
                             </span>
                             <Field label="Name" value={robot.robotName || "—"} />
@@ -258,12 +287,18 @@ export function RobotStatusLog({
                           </span>
                         </span>
                       </button>
+                      {onEdit && <button type="button" className="pointer-events-auto absolute top-2 right-11 z-10 border border-brand/60 bg-surface px-2 py-1 text-[10px] text-brand" onClick={(event) => { event.stopPropagation(); onEdit(log); }}>Edit</button>}
                     </li>
                   );
                 })}
               </ol>
             </section>
           ))}
+          {rows.length > shown.length && (
+            <button type="button" onClick={() => setLimit((n) => n + PAGE_SIZE)} className="pointer-events-auto mr-9 mb-2 ml-auto block border border-brand/50 bg-surface px-3 py-1 text-xs text-brand hover:border-brand">
+              Show {Math.min(PAGE_SIZE, rows.length - shown.length)} more ({rows.length - shown.length} older)
+            </button>
+          )}
         </div>
       )}
     </aside>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ROOM_LAYOUT, ROOM_NAME } from "./component/room/floorPlan";
 import RoomWorkspace from "./component/room/RoomWorkspace";
+import { buttonClass } from "./component/ui";
 import { TeamBadge } from "./component/signature/BrandMarks";
 
 export default function Home() {
@@ -23,7 +24,7 @@ export default function Home() {
             <span className="hud-title block text-[10px] font-bold text-brand">AI Team</span>
           </span>
         </div>
-        <TeamBadge />
+        <div className="flex items-center gap-4"><Link href="/show" target="_blank" rel="noopener" className={buttonClass({ variant: "secondary", size: "sm" })}>Presentation <span className="sr-only">(opens in a new tab)</span></Link><TeamBadge /></div>
       </header>
       <RoomWorkspace />
     </main>

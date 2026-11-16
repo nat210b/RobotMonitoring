@@ -25,6 +25,20 @@ const sizes: Record<ButtonSize, string> = {
   lg: "h-12 px-6 text-base",
 };
 
+/** Button look as a class string, for links that must be <a> but should look like a Button. */
+export function buttonClass({ variant = "primary", size = "md", fullWidth, className }: { variant?: ButtonVariant; size?: ButtonSize; fullWidth?: boolean; className?: string } = {}) {
+  return cn(
+    "inline-flex items-center justify-center gap-2 rounded-control font-medium select-none",
+    "disabled:cursor-not-allowed disabled:opacity-50",
+    transition,
+    focusRing,
+    variants[variant],
+    sizes[size],
+    fullWidth && "w-full",
+    className,
+  );
+}
+
 export function Button({
   variant = "primary",
   size = "md",
@@ -41,16 +55,7 @@ export function Button({
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-control font-medium select-none",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        transition,
-        focusRing,
-        variants[variant],
-        sizes[size],
-        fullWidth && "w-full",
-        className,
-      )}
+      className={buttonClass({ variant, size, fullWidth, className })}
       {...rest}
     >
       {loading && (

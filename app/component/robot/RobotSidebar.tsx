@@ -26,10 +26,12 @@ export interface RobotSidebarProps {
   video?: MachineVideo;
   onVideoChange: (video: MachineVideo | null) => void;
   className?: string;
+  /** Presentation mode: same layout, but every field is disabled and there is no Save. */
+  readOnly?: boolean;
 }
 
 /** Left side bar shown only while a machine is selected: the edit form of that machine's robot. */
-export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClose, onSaved, video, onVideoChange, className }: RobotSidebarProps) {
+export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClose, onSaved, video, onVideoChange, className, readOnly }: RobotSidebarProps) {
   const [saving, setSaving] = useState(false);
   const machine = ROOM_LAYOUT.find((m) => m.id === machineId);
   const ready = !loading && !error;
@@ -51,9 +53,11 @@ export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClos
       footer={
         ready && (
           <div className="flex gap-2">
-            <Button type="submit" form={FORM_ID} loading={saving} fullWidth>
-              Save
-            </Button>
+            {!readOnly && (
+              <Button type="submit" form={FORM_ID} loading={saving} fullWidth>
+                Save
+              </Button>
+            )}
             <Button variant="secondary" onClick={onClose} disabled={saving}>
               Close
             </Button>
@@ -71,10 +75,10 @@ export function RobotSidebar({ machineId, robot, loading, error, onRetry, onClos
       ) : loading ? (
         <p className="text-sm text-muted">Loading robot data…</p>
       ) : (
-        <div className="flex flex-col gap-4">
+        <fieldset disabled={readOnly} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
           <RobotForm key={machineId} id={FORM_ID} machineId={machineId} robot={robot} onSaved={onSaved} onSavingChange={setSaving} />
           {machine && <MachineVideoPanel type={machine.type} video={video} onChange={onVideoChange} />}
-        </div>
+        </fieldset>
       )}
     </Sidebar>
   );

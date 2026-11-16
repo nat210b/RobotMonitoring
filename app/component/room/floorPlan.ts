@@ -131,10 +131,10 @@ export const ROOM_SECTIONS: RoomSection[] = [
   { id: "upg", label: "UPG", color: GREEN, ink: "#fff", machineIds: ids("UPG", 10) },
   { id: "narita", label: "Narita Left Trans Ass'y", color: GREEN, ink: "#fff", machineIds: ["LTA-01"] },
   { id: "moreto", label: "Moreto Left Trans Ass'y", color: GREEN, ink: "#fff", machineIds: ["LTA-02"] },
-  { id: "pick-arm-2", label: "Pick Arm", color: "#facc15", ink: "#000", machineIds: ids("PA2", 2) },
+  { id: "pick-arm-2", label: "Pick Arm", color: GREEN, ink: "#fff", machineIds: ids("PA2", 2) },
   { id: "pulley", label: "Pulley Turn Around", color: GREEN, ink: "#fff", machineIds: ids("PTA", 2) },
   { id: "pick-arm-1", label: "Pick Arm", color: GREEN, ink: "#fff", machineIds: ids("PA1", 2) },
-  { id: "pick-drive", label: "Pick Drive", color: "#fb923c", ink: "#000", machineIds: ids("PDA", 3) },
+  { id: "pick-drive", label: "Pick Drive", color: GREEN, ink: "#fff", machineIds: ids("PDA", 3) },
   { id: "photo-tray", label: "Photo Tray Ass'y", color: GREEN, ink: "#fff", machineIds: ["PHT-01"] },
   { id: "pad", label: "Pad Elastomer", color: GREEN, ink: "#fff", machineIds: ids("PAD", 8) },
 ];
