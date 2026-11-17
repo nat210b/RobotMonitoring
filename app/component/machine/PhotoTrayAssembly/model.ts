@@ -171,7 +171,7 @@ export function createPhotoTrayAssembly(): MachineParts {
   // each of those picks: the left one after the left robot's, the right one after the back-right,
   // right and front robots' (1.2 s apart, so its turn is shorter).
   const pickStarts = { L: [] as number[], R: [] as number[] };
-  for (const [dial, offset, starts, move] of [[dialL, Math.PI / 6, pickStarts.L, 0.6], [dialR, 0, pickStarts.R, 0.4]] as const) {
+  for (const [dial, offset, starts, move] of [[dialL, Math.PI / 6, pickStarts.L, 0.1 * ROBOT_CYCLE], [dialR, 0, pickStarts.R, (0.4 / 6) * ROBOT_CYCLE]] as const) {
     const table = createIndexTable(m, 0.49, 6, offset, starts, move);
     table.object.position.set(dial.x, tableH, dial.z);
     add(table.object);

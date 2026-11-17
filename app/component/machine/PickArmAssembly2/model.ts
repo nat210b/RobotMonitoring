@@ -85,7 +85,7 @@ function createWindowDisc(m: Materials, radius: number, height: number, pickStar
   const step = (Math.PI * 2) / windows;
   rotor.userData.indexTable = true; // tooling finds the turning part by this
   const update = (t: number) => {
-    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 1.2, step });
+    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 0.2 * ROBOT_CYCLE, step });
   };
   update(0);
   return { object: g, update };

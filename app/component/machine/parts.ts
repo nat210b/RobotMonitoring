@@ -12,7 +12,7 @@ type Vec3 = [number, number, number];
  * Length of one robot work cycle (s). Every robot repeats its pick-and-place in exactly this
  * time, so a machine's whole motion repeats every cycle (scripts/check-motion.ts relies on it).
  */
-export const ROBOT_CYCLE = 6;
+export const ROBOT_CYCLE = 3;
 
 /**
  * Per-robot motion settings. The update reads them every frame; they are also kept on the
@@ -861,7 +861,7 @@ type GlassCellOptions = {
  * (handles, hinges), a worktop deck, and an aluminium-framed glass enclosure with the
  * roof split in four and a lifting handle on the right side. Returns the deck top height.
  */
-export function createGlassCell(m: Materials, { width: W, depth: D, height: H, casterHeight: C, deckHeight: deck }: GlassCellOptions) {
+export function createGlassCell(m: Materials, { width: W, depth: D, casterHeight: C, deckHeight: deck }: GlassCellOptions) {
   const g = new THREE.Group();
   const P = 0.03;
   g.add(createCabinet(m, { width: W, height: deck, depth: D, casterHeight: C, body: m.panel }));
@@ -869,27 +869,8 @@ export function createGlassCell(m: Materials, { width: W, depth: D, height: H, c
   for (const x of [-0.045, 0.045]) g.add(box(0.012, 0.13, 0.012, m.steel, x, C + (deck - C) * 0.55, D / 2 + 0.02));
   for (const sx of [-1, 1]) for (const y of [C + 0.08, deck - 0.1]) g.add(box(0.03, 0.05, 0.012, m.dark, sx * (W / 2 - 0.05), y, D / 2 + 0.008));
 
-  const top = H - P / 2;
-  const x0 = -W / 2 + P / 2;
-  const x1 = W / 2 - P / 2;
-  const z0 = -D / 2 + P / 2;
-  const z1 = D / 2 - P / 2;
   g.add(box(W - 0.01, 0.015, D - 0.01, m.worktop, 0, deck + 0.0075, 0));
-  for (const x of [x0, x1]) for (const z of [z0, z1]) g.add(beam([x, deck, z], [x, H, z], P, m.aluminum));
-  for (const y of [deck + P / 2, top]) {
-    g.add(beam([x0, y, z0], [x1, y, z0], P, m.aluminum), beam([x0, y, z1], [x1, y, z1], P, m.aluminum));
-    g.add(beam([x0, y, z0], [x0, y, z1], P, m.aluminum), beam([x1, y, z0], [x1, y, z1], P, m.aluminum));
-  }
-  g.add(beam([0, top, z0], [0, top, z1], P, m.aluminum), beam([x0, top, 0], [x1, top, 0], P, m.aluminum));
-  const g0 = deck + P;
-  g.add(
-    panelXY(x0, x1, g0, H - P, D / 2 - 0.01, m.glass, 0.004),
-    panelXY(x0, x1, g0, H - P, -D / 2 + 0.01, m.glass, 0.004),
-    panelZY(z0, z1, g0, H - P, -W / 2 + 0.01, m.glass, 0.004),
-    panelZY(z0, z1, g0, H - P, W / 2 - 0.01, m.glass, 0.004),
-    box(W - P, 0.004, D - P, m.glass, 0, H - 0.002, 0),
-  );
-  g.add(box(0.012, 0.1, 0.012, m.steel, W / 2 + 0.02, deck + 0.38, 0.1));
+  // Open top: no pillars, roof rails or glass panes (removed on request); only the cabinet and worktop remain.
   return { object: g, deckTop: deck + 0.015 };
 }
 

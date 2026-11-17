@@ -42,11 +42,15 @@ type Props = {
   zoneAlerts?: readonly string[];
   /** Lamp to light per machine id (see MachineViewer). */
   lamps?: Record<string, LampColor | undefined>;
+  /** Section (ROOM_SECTIONS id) the camera is zoomed in on; null = whole room. */
+  focusZoneId?: string | null;
+  /** Called with a section id when its floor or badge is clicked, null when empty floor is clicked. */
+  onZoneSelect?: (id: string | null) => void;
   className?: string;
 };
 
 /** 3D view of the whole robot combined room with every machine in place. */
-export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, lamps, zoneAlerts, className }: Props) {
+export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, lamps, zoneAlerts, focusZoneId, onZoneSelect, className }: Props) {
   return (
     <MachineViewer
       create={createRoom}
@@ -66,6 +70,8 @@ export default function Room({ height = 640, fill = false, autoRotate = false, a
       view={view}
       lamps={lamps}
       zoneAlerts={zoneAlerts}
+      focusZoneId={focusZoneId}
+      onZoneSelect={onZoneSelect}
       className={className}
     />
   );

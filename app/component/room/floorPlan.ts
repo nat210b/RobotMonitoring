@@ -35,6 +35,7 @@ export type MachineType =
   | "PICK ARM ASSEMBLY1"
   | "PICK ARM ASSEMBLY2"
   | "PICK DRIVE ASSEMBLY"
+  | "PILLAR SIDE PLATE LEFT ASSEMBLY"
   | "PULLEY TURNAROUND ASSEMBLY"
   | "UPG ASSEMBLY";
 
@@ -97,6 +98,9 @@ export const ROOM_LAYOUT: MachinePlacement[] = [
   // fence at the back, the other fence and a tray rack on the right, robot stands on the left.
   { id: "PHT-01", type: "PHOTO TRAY ASSEMBLY", x: -4.12 + 3 * ROOM.tile, z: 5.49, rotation: Math.PI },
 
+  // Pillar Side Plate Left: own section, in the robot row's z, clear of the Pick Arm cells and the Photo Tray.
+  { id: "PSP-01", type: "PILLAR SIDE PLATE LEFT ASSEMBLY", x: -2.04, z: 1.93, rotation: FRONT_TO_BACK_WALL },
+
   // Robot row behind the PAD block [21, 22, 25, 26, 27]
   { id: "PA1-01", type: "PICK ARM ASSEMBLY1", x: 0.55, z: 1.93, rotation: FRONT_TO_BACK_WALL },
   { id: "PA1-02", type: "PICK ARM ASSEMBLY1", x: 2.56, z: 1.93, rotation: FRONT_TO_BACK_WALL },
@@ -132,6 +136,7 @@ export const ROOM_SECTIONS: RoomSection[] = [
   { id: "narita", label: "Narita Left Trans Ass'y", color: GREEN, ink: "#fff", machineIds: ["LTA-01"] },
   { id: "moreto", label: "Moreto Left Trans Ass'y", color: GREEN, ink: "#fff", machineIds: ["LTA-02"] },
   { id: "pick-arm-2", label: "Pick Arm", color: GREEN, ink: "#fff", machineIds: ids("PA2", 2) },
+  { id: "pillar-side-plate", label: "Pillar Side Plate Left", color: GREEN, ink: "#fff", machineIds: ["PSP-01"] },
   { id: "pulley", label: "Pulley Turn Around", color: GREEN, ink: "#fff", machineIds: ids("PTA", 2) },
   { id: "pick-arm-1", label: "Pick Arm", color: GREEN, ink: "#fff", machineIds: ids("PA1", 2) },
   { id: "pick-drive", label: "Pick Drive", color: GREEN, ink: "#fff", machineIds: ids("PDA", 3) },

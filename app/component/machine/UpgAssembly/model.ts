@@ -73,7 +73,7 @@ function createNestTable(m: Materials, radius: number, pickStarts: readonly numb
   // Turns one nest right after each SCARA's pick (pickStarts: their cycle starts)
   rotor.userData.indexTable = true; // tooling finds the turning part by this
   const update = (t: number) => {
-    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 0.6, step: Math.PI / 4 });
+    rotor.rotation.y = pickIndexAngle(t, { starts: pickStarts, move: 0.1 * ROBOT_CYCLE, step: Math.PI / 4 });
   };
   update(0);
   return { object: g, update };

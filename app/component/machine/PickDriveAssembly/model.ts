@@ -50,8 +50,9 @@ export function createPickDriveAssembly(): MachineParts {
   const cell = createGlassCell(m, FRAME);
   add(cell.object);
   // Stack light on the back-right corner of the roof
-  add(createStackLight(m, FRAME.width / 2 - 0.06, FRAME.height, -FRAME.depth / 2 + 0.06));
   const { deckTop } = cell;
+  // No roof any more: the stack light stands on a tall pole at the back-right corner of the deck
+  add(createStackLight(m, FRAME.width / 2 - 0.06, deckTop, -FRAME.depth / 2 + 0.06, 0.45));
 
   // ── Three SCARAs, posed as drawn (base J1, elbow J2, quill) ───────────────
   const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board: "-x" | "+z"; motion: Partial<RobotMotion> }[] = [

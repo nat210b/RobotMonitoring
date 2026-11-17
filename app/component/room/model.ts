@@ -6,6 +6,7 @@ import { createPhotoTrayAssembly } from "../machine/PhotoTrayAssembly/model";
 import { createPickArmAssembly1 } from "../machine/PickArmAssembly1/model";
 import { createPickArmAssembly2 } from "../machine/PickArmAssembly2/model";
 import { createPickDriveAssembly } from "../machine/PickDriveAssembly/model";
+import { createPillarSidePlateLeftAssembly } from "../machine/PillarSidePlateLeftAssembly/model";
 import { createPulleyTurnaroundAssembly } from "../machine/PulleyTurnaroundAssembly/model";
 import { createUpgAssembly } from "../machine/UpgAssembly/model";
 import { ROBOT_CYCLE, type MachineParts } from "../machine/parts";
@@ -24,6 +25,7 @@ export const MACHINE_FACTORIES: Record<MachineType, () => MachineParts> = {
   "PICK ARM ASSEMBLY1": createPickArmAssembly1,
   "PICK ARM ASSEMBLY2": createPickArmAssembly2,
   "PICK DRIVE ASSEMBLY": createPickDriveAssembly,
+  "PILLAR SIDE PLATE LEFT ASSEMBLY": createPillarSidePlateLeftAssembly,
   "PULLEY TURNAROUND ASSEMBLY": createPulleyTurnaroundAssembly,
   "UPG ASSEMBLY": createUpgAssembly,
 };

@@ -67,3 +67,5 @@ Existing functionality is preserved.
 Relevant checks pass.
 No unnecessary files or dependencies are introduced.
 Any unresolved issues are reported clearly.
+
+can zoom into section when select on section

@@ -51,11 +51,23 @@ type MachineViewerProps = {
   view?: "iso" | "top" | "free";
   /** Which stack-light lamp to light per machine id. A machine without an entry lights red. */
   lamps?: Record<string, LampColor | undefined>;
+  /** Zone id the camera is zoomed in on (null = whole model). The camera keeps the current `view`. */
+  focusZoneId?: string | null;
+  /**
+   * Called with a zone's id when the user clicks its floor highlight or its badge, or with null when they
+   * click empty floor outside every zone. Set `focusZoneId` from it to zoom in.
+   */
+  onZoneSelect?: (id: string | null) => void;
   className?: string;
 };
 
 /** Floor highlight colour of a zone that has a problem. */
 const ZONE_ALERT_COLOR = "#ffc21a";
+/** Floor tint opacity of a zone, and the darker value while the pointer is over it. */
+const ZONE_OPACITY = 0.22;
+const ZONE_HOVER_OPACITY = 0.5;
+/** Floor tint opacity of the selected (zoomed-in) zone: darker than hover. */
+const ZONE_SELECTED_OPACITY = 0.7;
 const LAMP_GLOW = { green: 0x2fe06b, amber: 0xffb020, red: 0xff3b30 } as const;
 
 /** Lights or darkens the tagged stack-light lamps (see markLamp) of every machine in the scene. */
@@ -106,6 +118,8 @@ export default function MachineViewer({
   showZones = true,
   view = "free",
   lamps,
+  focusZoneId = null,
+  onZoneSelect,
   className,
 }: MachineViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -135,11 +149,27 @@ export default function MachineViewer({
   }, [zoneAlerts]);
 
   const viewRef = useRef(view);
-  const applyViewRef = useRef<((v: "iso" | "top" | "free", instant?: boolean) => void) | null>(null);
+  const applyViewRef = useRef<((v: "iso" | "top" | "free", instant?: boolean, reframe?: boolean) => void) | null>(null);
   useEffect(() => {
     viewRef.current = view;
-    applyViewRef.current?.(view);
+    applyViewRef.current?.(view, false, false); // "free" keeps the camera where it is
   }, [view]);
+
+  // Zone focus: fly to frame the zone (or back out to the whole model) in the current view.
+  const focusRef = useRef(focusZoneId);
+  const onZoneSelectRef = useRef(onZoneSelect);
+  /** Darkens a zone's floor tint as if the pointer were over it (null clears); set by the scene effect. */
+  const zoneHoverRef = useRef<((id: string | null) => void) | null>(null);
+  /** Re-applies the zones' floor tint opacity (focused / hovered / normal); set by the scene effect. */
+  const paintZonesRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    onZoneSelectRef.current = onZoneSelect;
+  }, [onZoneSelect]);
+  useEffect(() => {
+    focusRef.current = focusZoneId;
+    applyViewRef.current?.(viewRef.current, false, true);
+    paintZonesRef.current?.();
+  }, [focusZoneId]);
 
   const showZonesRef = useRef(showZones);
   const zoneGroupRef = useRef<THREE.Group | null>(null);
@@ -193,32 +223,44 @@ export default function MachineViewer({
     const topDir = new THREE.Vector3(0, 1, 0.0001).normalize();
     // The flight orbits the model (angle, tilt and distance eased together) rather than sliding in a
     // straight line, which would cut through the room and whip round near the top-down pose.
-    let fly: { from: THREE.Spherical; to: THREE.Spherical; fromTarget: THREE.Vector3; start: number } | null = null;
+    let fly: { from: THREE.Spherical; to: THREE.Spherical; fromTarget: THREE.Vector3; toTarget: THREE.Vector3; start: number } | null = null;
     const FLY_MS = 1000;
     const flyPos = new THREE.Spherical();
     const flyOffset = new THREE.Vector3();
-    const applyView = (v: "iso" | "top" | "free", instant = false) => {
+    // Zone floor boxes (filled in below, once the machines are known); the focus view frames one of them.
+    const zoneBoxes = new Map<string, THREE.Box3>();
+    /** Where the camera looks and how far away it sits to show the focused zone (or the whole model). */
+    const frameFor = (zoneId: string | null) => {
+      const box = zoneId ? zoneBoxes.get(zoneId) : undefined;
+      if (!box) return { target: center, dist: radius * viewDistance };
+      const r = box.getSize(new THREE.Vector3()).length() / 2;
+      const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+      const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+      return { target: box.getCenter(new THREE.Vector3()), dist: Math.max((r / Math.sin(Math.min(vHalf, hHalf))) * 1.05, controls.minDistance) };
+    };
+    const applyView = (v: "iso" | "top" | "free", instant = false, reframe = true) => {
       controls.enableRotate = v === "free";
-      if (v === "free") {
+      if (v === "free" && !reframe) {
         fly = null;
         return;
       }
       controls.autoRotate = false;
-      const to = new THREE.Spherical().setFromVector3((v === "top" ? topDir : isoDir).clone().multiplyScalar(radius * viewDistance));
+      const { target, dist } = frameFor(focusRef.current);
+      // iso / top use their preset direction; free keeps the way the camera is already looking.
+      const dir = v === "free" ? camera.position.clone().sub(controls.target).normalize() : v === "top" ? topDir : isoDir;
+      const to = new THREE.Spherical().setFromVector3(dir.clone().multiplyScalar(dist));
       if (instant) {
-        camera.position.copy(center).add(new THREE.Vector3().setFromSpherical(to));
-        controls.target.copy(center);
+        camera.position.copy(target).add(new THREE.Vector3().setFromSpherical(to));
+        controls.target.copy(target);
         fly = null;
       } else {
         const from = new THREE.Spherical().setFromVector3(camera.position.clone().sub(controls.target));
         // Turn the short way round.
         const dTheta = Math.atan2(Math.sin(to.theta - from.theta), Math.cos(to.theta - from.theta));
         to.theta = from.theta + dTheta;
-        fly = { from, to, fromTarget: controls.target.clone(), start: performance.now() };
+        fly = { from, to, fromTarget: controls.target.clone(), toTarget: target.clone(), start: performance.now() };
       }
     };
-    applyViewRef.current = applyView;
-    applyView(viewRef.current, true);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0xaeb6c0, 1.6));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -272,7 +314,6 @@ export default function MachineViewer({
       return true;
     };
     // Zones: a tinted floor rectangle with a dashed outline round each group of machines.
-    const zoneBoxes = new Map<string, THREE.Box3>();
     const zoneDisposables: { dispose(): void }[] = [];
     const zoneStyles: { id: string; base: string; machineIds: readonly string[]; fill: THREE.MeshBasicMaterial; line: THREE.LineBasicMaterial }[] = [];
     const zoneGroup = new THREE.Group();
@@ -300,7 +341,7 @@ export default function MachineViewer({
       const d = box.max.z - box.min.z;
       const cx = (box.min.x + box.max.x) / 2;
       const cz = (box.min.z + box.max.z) / 2;
-      const fillM = new THREE.MeshBasicMaterial({ color: zone.color, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
+      const fillM = new THREE.MeshBasicMaterial({ color: zone.color, transparent: true, opacity: ZONE_OPACITY, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1 });
       const plane = new THREE.Mesh(new THREE.PlaneGeometry(w, d), fillM);
       plane.rotation.x = -Math.PI / 2;
       plane.position.set(cx, 0.003, cz);
@@ -356,11 +397,53 @@ export default function MachineViewer({
       }
       return null;
     };
-    const onPointerMove = (e: PointerEvent) => {
-      if (machines.size === 0 || e.buttons) return setHover(null); // no hover while orbiting
-      setHover(pickMachine(e));
+    // Zone under the pointer ray's hit on the floor (smallest box wins when zones overlap). Call right after pickMachine.
+    const floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const floorHit = new THREE.Vector3();
+    const zoneAtPointer = (): string | null => {
+      if (!showZonesRef.current || !raycaster.ray.intersectPlane(floorPlane, floorHit)) return null;
+      let best: string | null = null;
+      let bestArea = Infinity;
+      zoneBoxes.forEach((box, id) => {
+        if (floorHit.x < box.min.x || floorHit.x > box.max.x || floorHit.z < box.min.z || floorHit.z > box.max.z) return;
+        const area = (box.max.x - box.min.x) * (box.max.z - box.min.z);
+        if (area < bestArea) [best, bestArea] = [id, area];
+      });
+      return best;
     };
-    const onPointerLeave = () => setHover(null);
+    // Hovered zone: its floor tint gets darker.
+    let hoveredZone: string | null = null;
+    // The focused (selected) zone is darkest, then the hovered one, then the rest.
+    const paintZones = () => {
+      for (const z of zoneStyles) z.fill.opacity = z.id === focusRef.current ? ZONE_SELECTED_OPACITY : z.id === hoveredZone ? ZONE_HOVER_OPACITY : ZONE_OPACITY;
+    };
+    paintZones();
+    paintZonesRef.current = paintZones;
+    const setZoneHover = (zoneId: string | null) => {
+      if (zoneId === hoveredZone) return;
+      hoveredZone = zoneId;
+      paintZones();
+    };
+    zoneHoverRef.current = (zoneId) => setZoneHover(showZonesRef.current ? zoneId : null); // used by the zone badges
+    const onPointerMove = (e: PointerEvent) => {
+      if (machines.size === 0 || e.buttons) {
+        setZoneHover(null);
+        return setHover(null); // no hover while orbiting
+      }
+      const id = pickMachine(e);
+      setHover(id);
+      // Over a machine the zone is the machine's own; over bare floor it is the zone under the pointer.
+      const zoneId = id ? (zoneStyles.find((z) => z.machineIds.includes(id))?.id ?? null) : zoneAtPointer();
+      setZoneHover(showZonesRef.current ? zoneId : null);
+      if (!id && onZoneSelectRef.current) renderer.domElement.style.cursor = zoneId ? "pointer" : "";
+    };
+    const onPointerLeave = (e: PointerEvent) => {
+      setHover(null);
+      // Moving onto a zone badge: React fires the badge's onPointerEnter (from pointerout) before this
+      // pointerleave, so leave the zone hover to the badge instead of clearing what it just set.
+      if (e.relatedTarget instanceof Node && container.contains(e.relatedTarget)) return;
+      setZoneHover(null);
+    };
     renderer.domElement.addEventListener("pointermove", onPointerMove);
     renderer.domElement.addEventListener("pointerleave", onPointerLeave);
 
@@ -371,9 +454,12 @@ export default function MachineViewer({
     const onPointerUp = (e: PointerEvent) => {
       const start = down;
       down = null;
-      if (!start || !onSelectRef.current || machines.size === 0) return;
+      if (!start || machines.size === 0 || (!onSelectRef.current && !onZoneSelectRef.current)) return;
       if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > CLICK_TOLERANCE) return; // it was a drag
-      onSelectRef.current(pickMachine(e));
+      const id = pickMachine(e);
+      onSelectRef.current?.(id);
+      // A click on a machine only selects it; a click on bare zone floor zooms to that zone; elsewhere zooms back out.
+      if (!id) onZoneSelectRef.current?.(zoneAtPointer());
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -390,6 +476,9 @@ export default function MachineViewer({
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(container);
+    // Start in the chosen view (and zone), now that the zones and the aspect ratio are known.
+    applyViewRef.current = applyView;
+    applyView(viewRef.current, true);
 
     let start: number | undefined;
     let frame = 0;
@@ -432,7 +521,7 @@ export default function MachineViewer({
           THREE.MathUtils.lerp(fly.from.phi, fly.to.phi, e),
           THREE.MathUtils.lerp(fly.from.theta, fly.to.theta, e),
         );
-        controls.target.lerpVectors(fly.fromTarget, center, e);
+        controls.target.lerpVectors(fly.fromTarget, fly.toTarget, e);
         camera.position.copy(controls.target).add(flyOffset.setFromSpherical(flyPos));
         if (k >= 1) fly = null;
       }
@@ -451,6 +540,8 @@ export default function MachineViewer({
       applyViewRef.current = null;
       zoneGroupRef.current = null;
       recolorZonesRef.current = null;
+      zoneHoverRef.current = null;
+      paintZonesRef.current = null;
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       renderer.domElement.removeEventListener("pointermove", onPointerMove);
@@ -484,7 +575,19 @@ export default function MachineViewer({
               if (el) badgeEls.current.set(id, el);
               else badgeEls.current.delete(id);
             }}
-            style={{ position: "absolute", left: 0, top: 0, visibility: "hidden", pointerEvents: "none", willChange: "transform" }}
+            // A zone's badge is a button that zooms to the zone; machine badges stay click-through.
+            onClick={onZoneSelect && zones?.some((z) => z.id === id) ? () => onZoneSelect(id) : undefined}
+            onPointerEnter={zones?.some((z) => z.id === id) ? () => zoneHoverRef.current?.(id) : undefined}
+            onPointerLeave={zones?.some((z) => z.id === id) ? () => zoneHoverRef.current?.(null) : undefined}
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              visibility: "hidden",
+              pointerEvents: onZoneSelect && zones?.some((z) => z.id === id) ? "auto" : "none",
+              cursor: onZoneSelect && zones?.some((z) => z.id === id) ? "pointer" : undefined,
+              willChange: "transform",
+            }}
           >
             {node}
           </div>

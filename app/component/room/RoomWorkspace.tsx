@@ -39,6 +39,15 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
   // Settings slides in from the right like a drawer and slides back out before it unmounts (320 ms = --duration-slow)
   const settingsDrawer = usePresence(settingsOpen, 320);
   const [view, setView] = useState<"iso" | "top" | "free">("iso");
+  // Section the camera is zoomed in on (click a section's floor or name); Escape or "Show all" zooms back out.
+  const [focusZoneId, setFocusZoneId] = useState<string | null>(null);
+  const focusZone = ROOM_SECTIONS.find((s) => s.id === focusZoneId);
+  useEffect(() => {
+    if (!focusZoneId) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFocusZoneId(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusZoneId]);
   /** Bumped by Retry to load again. */
   const [attempt, setAttempt] = useState(0);
 
@@ -290,7 +299,7 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
     <div className="relative min-h-[320px] flex-1 overflow-hidden">
       {/* overflow-hidden: the Settings drawer slides out past the right edge; clip it instead of scrolling the page */}
       {/* The 3D room always fills the whole area, so opening the side bar never resizes or moves it. */}
-      <Room fill className="absolute inset-0" onSelect={setSelectedId} selectedId={selectedId} badges={badges} showZones={settings.showHighlight} view={view} lamps={lamps} zoneAlerts={problemSections} />
+      <Room fill className="absolute inset-0" onSelect={setSelectedId} selectedId={selectedId} badges={badges} showZones={settings.showHighlight} view={view} lamps={lamps} zoneAlerts={problemSections} focusZoneId={focusZoneId} onZoneSelect={setFocusZoneId} />
       {/* Overview (chart + ON / OFF table) down the left edge; the robot side bar takes its place while a machine is selected. */}
       {!selectedId && <MachineOverview className="absolute top-3 bottom-3 left-3 z-10 hidden w-[27rem] max-w-[calc(100%-1.5rem)] md:flex" onSelect={setSelectedId} power={power} robots={robots} passCount={passCount} failCount={failCount} />}
       {/* Status log down the right edge (md up), under the top-right row; the settings drawer covers it. */}
@@ -299,6 +308,11 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
       </div>
       {/* Top-right row: camera view (iso / top-down with rotation locked, or free orbit) beside the Settings button. */}
       <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+        {focusZone && (
+          <Button variant="secondary" size="sm" className="shadow-md" onClick={() => setFocusZoneId(null)} aria-label={`Zoom out from ${focusZone.label}`}>
+            Show all
+          </Button>
+        )}
         <Selector
           ariaLabel="Camera view"
           value={view}
