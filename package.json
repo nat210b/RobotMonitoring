@@ -6,6 +6,7 @@
     "dev": "node --import ./scripts/load-env.mjs .\\node_modules\\next\\dist\\bin\\next dev",
     "build": "next build",
     "start": "node --import ./scripts/load-env.mjs .\\node_modules\\next\\dist\\bin\\next start",
+    "deploy": "node scripts/deploy.mjs",
     "lint": "eslint",
     "check:motion": "jiti scripts/check-motion.ts"
   },

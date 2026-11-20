@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Self-contained server in .next/standalone; `npm run deploy` packs it into ./deploy for LAN hosting.
+  output: "standalone",
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
