@@ -176,10 +176,17 @@ export function RobotStatusLog({
         prevPos.current = next;
         return;
       }
+      // Every card is a blurred glass panel over the live WebGL room, so slide only the ones on (or near) the screen.
+      const view = scrollRef.current.getBoundingClientRect();
+      const nearView = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect();
+        return r.bottom > view.top - 200 && r.top < view.bottom + 200;
+      };
       itemRefs.current.forEach((el, id) => {
         const before = prev.get(id);
         const after = next.get(id)!;
         if (before === undefined || Math.abs(before - after) <= 1) return; // unmoved: let any running slide finish
+        if (!nearView(el)) return;
         // Start from where the entry is drawn right now: its old place plus any slide still in flight.
         const style = getComputedStyle(el).transform;
         const inFlight = style && style !== "none" ? new DOMMatrixReadOnly(style).m42 : 0;
@@ -189,7 +196,7 @@ export function RobotStatusLog({
       // Several new entries arrive one after another: the oldest first, the newest last.
       fresh.forEach((el, i) => {
         el.animate(
-          [{ opacity: 0, transform: "translateY(-32px) scale(0.97)", filter: "blur(4px)" }, { opacity: 1, transform: "none", filter: "blur(0)" }],
+          [{ opacity: 0, transform: "translateY(-32px) scale(0.97)" }, { opacity: 1, transform: "none" }],
           { duration: 600, delay: (fresh.length - 1 - i) * 220, easing: EASE, fill: "backwards" },
         );
       });

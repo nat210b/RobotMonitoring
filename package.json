@@ -1,6 +1,6 @@
 {
   "name": "robot_monitoring",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "node --import ./scripts/load-env.mjs .\\node_modules\\next\\dist\\bin\\next dev",

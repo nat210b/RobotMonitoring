@@ -131,3 +131,8 @@ remaining items are goals for future development.
 
 
 if 5 machine in section that have 5 or nor than five  is have log as fail the section will display orange section and have warning 
+
+FACTORY 9 
+
+performance 
+output hrs bar

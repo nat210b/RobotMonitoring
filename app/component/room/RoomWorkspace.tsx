@@ -26,7 +26,11 @@ async function fetchRobots(): Promise<Map<string, Robot>> {
   return new Map((data.robots as Robot[]).map((r) => [r.machineID, r]));
 }
 
-const errorText = (err: unknown) => (err instanceof Error ? err.message : "Could not load robots.");
+/** Same data as before? Used by the pollers to keep the previous state object (so nothing re-renders) when a refresh brings no change. */
+const sameData = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const sameRobots = (a: Map<string, Robot>, b: Map<string, Robot>) => a.size === b.size && sameData([...a], [...b]);
+
+const errorText =(err: unknown) => (err instanceof Error ? err.message : "Could not load robots.");
 
 /** Room page body: clickable 3D room filling the area, with the robot side bar floating over its left edge. */
 export default function RoomWorkspace({ presentation = false }: { presentation?: boolean }) {
@@ -69,7 +73,7 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
   // Keep the lamps current: the server switches idle robots off, so reload quietly every 10 seconds.
   useEffect(() => {
     const timer = setInterval(() => {
-      fetchRobots().then(setRobots).catch(() => {});
+      fetchRobots().then((next) => setRobots((prev) => (sameRobots(prev, next) ? prev : next))).catch(() => {});
     }, 10_000);
     return () => clearInterval(timer);
   }, []);
@@ -157,7 +161,7 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
     const load = () =>
       fetch("/api/v1/robot-status", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : null))
-        .then((data: { logs?: RobotStatusLogEntry[] } | null) => active && data?.logs && setLogs(data.logs))
+        .then((data: { logs?: RobotStatusLogEntry[] } | null) => { const next = data?.logs; if (active && next) setLogs((prev) => (sameData(prev, next) ? prev : next)); })
         .catch(() => { });
     load();
     const timer = setInterval(load, 30_000);
@@ -241,6 +245,54 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
     return ROOM_SECTIONS.filter((s) => s.machineIds.some((id) => robots.get(id)?.robotPower !== true || robots.get(id)?.robotStatus === "FAIL")).map((s) => s.id);
   }, [robots, loading, error]);
 
+  // PASS / FAIL totals of the logs on screen (the mock + real mix on /show, the live log on the main route)
+  const listedLogs = presentation ? shownLogs : logs;
+  const passCount = useMemo(() => listedLogs.filter((log) => log.status === "PASS").length, [listedLogs]);
+  const failCount = useMemo(() => listedLogs.filter((log) => log.status === "FAIL").length, [listedLogs]);
+  // The same PASS / FAIL counts per section: each log is counted for the section of the machine its robot is on.
+  const sectionCounts = useMemo(() => {
+    const sectionOfRobot = new Map<string, string>();
+    for (const s of ROOM_SECTIONS) for (const id of s.machineIds) {
+      const robot = robots.get(id);
+      if (robot) sectionOfRobot.set(robot.robotID, s.id);
+    }
+    const out: Record<string, { pass: number; fail: number }> = Object.fromEntries(ROOM_SECTIONS.map((s) => [s.id, { pass: 0, fail: 0 }]));
+    for (const log of listedLogs) {
+      const sectionId = sectionOfRobot.get(log.robot_id);
+      if (!sectionId) continue;
+      if (log.status === "PASS") out[sectionId].pass++;
+      else if (log.status === "FAIL") out[sectionId].fail++;
+    }
+    return out;
+  }, [listedLogs, robots]);
+
+  // Output per hour: PASS / FAIL logs per clock hour from 08:00 of the day of the newest log on screen
+  // (the day before if that log is earlier than 08:00): at least 08:00–19:00, longer if logs run later.
+  // Taken from the logs, not the clock, so nothing time-based is read while rendering.
+  const hourly = useMemo(() => {
+    const DAY_START_HOUR = 8;
+    const MIN_HOURS = 12;
+    const HOUR = 3_600_000;
+    const times = listedLogs.map((log) => Date.parse(log.datetime)).filter((t) => !Number.isNaN(t));
+    if (!times.length) return undefined;
+    const newest = Math.max(...times);
+    const start = new Date(newest);
+    start.setHours(DAY_START_HOUR, 0, 0, 0);
+    if (start.getTime() > newest) start.setDate(start.getDate() - 1);
+    const first = start.getTime();
+    const HOURS = Math.min(24, Math.max(MIN_HOURS, Math.floor((newest - first) / HOUR) + 1));
+    const pass = new Array<number>(HOURS).fill(0);
+    const fail = new Array<number>(HOURS).fill(0);
+    for (const log of listedLogs) {
+      const slot = Math.floor((Date.parse(log.datetime) - first) / HOUR);
+      if (slot < 0 || slot >= HOURS) continue;
+      if (log.status === "PASS") pass[slot]++;
+      else if (log.status === "FAIL") fail[slot]++;
+    }
+    const labels = Array.from({ length: HOURS }, (_, i) => `${String(new Date(first + i * HOUR).getHours()).padStart(2, "0")}:00`);
+    return { labels, pass, fail };
+  }, [listedLogs]);
+
   // Floating labels. A machine that is off gets a red power icon; a section with a machine that is off
   // or failing gets a yellow warning icon. Each machine also shows its status, and each section its name,
   // when those settings are on. Nothing is flagged until the robots have loaded.
@@ -290,18 +342,13 @@ export default function RoomWorkspace({ presentation = false }: { presentation?:
 
 
 
-  // PASS / FAIL totals of the logs on screen (the mock + real mix on /show, the live log on the main route)
-  const listedLogs = presentation ? shownLogs : logs;
-  const passCount = useMemo(() => listedLogs.filter((log) => log.status === "PASS").length, [listedLogs]);
-  const failCount = useMemo(() => listedLogs.filter((log) => log.status === "FAIL").length, [listedLogs]);
-
   return (
     <div className="relative min-h-[320px] flex-1 overflow-hidden">
       {/* overflow-hidden: the Settings drawer slides out past the right edge; clip it instead of scrolling the page */}
       {/* The 3D room always fills the whole area, so opening the side bar never resizes or moves it. */}
-      <Room fill className="absolute inset-0" onSelect={setSelectedId} selectedId={selectedId} badges={badges} showZones={settings.showHighlight} view={view} lamps={lamps} zoneAlerts={problemSections} focusZoneId={focusZoneId} onZoneSelect={setFocusZoneId} />
+      <Room fill className="absolute inset-0" onSelect={setSelectedId} selectedId={selectedId} badges={badges} showZones={settings.showHighlight} view={view} lockRotation={!presentation} lamps={lamps} zoneAlerts={problemSections} focusZoneId={focusZoneId} onZoneSelect={setFocusZoneId} />
       {/* Overview (chart + ON / OFF table) down the left edge; the robot side bar takes its place while a machine is selected. */}
-      {!selectedId && <MachineOverview className="absolute top-3 bottom-3 left-3 z-10 hidden w-[27rem] max-w-[calc(100%-1.5rem)] md:flex" onSelect={setSelectedId} power={power} robots={robots} passCount={passCount} failCount={failCount} />}
+      {!selectedId && <MachineOverview className="absolute top-3 bottom-3 left-3 z-10 hidden w-[27rem] max-w-[calc(100%-1.5rem)] md:flex" onSelect={setSelectedId} power={power} robots={robots} passCount={passCount} failCount={failCount} sectionCounts={sectionCounts} hourly={hourly} />}
       {/* Status log down the right edge (md up), under the top-right row; the settings drawer covers it. */}
       <div className="pointer-events-none absolute top-14 right-3 bottom-3 z-10 hidden w-[37rem] max-w-[calc(100%-1.5rem)] flex-col items-end md:flex">
         <RobotStatusLog logs={listedLogs} className="min-h-0 w-full flex-1" robots={robots} selectedId={selectedId} onSelect={setSelectedId} />

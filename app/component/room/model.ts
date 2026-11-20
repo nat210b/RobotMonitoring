@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { createFeedRollerGearClusterAssembly } from "../machine/FeedRollerGearClusterAssembly/model";
 import { createLeftTransmissionAssembly } from "../machine/LeftTransmissionAssembly/model";
 import { createPadElastomerAssembly } from "../machine/PadElastomerAssembly/model";
@@ -294,6 +295,54 @@ function animatedNodeIndices(parts: MachineParts) {
 }
 
 /**
+ * Merges the meshes that move rigidly with `root` — not under another moving node, not a stack-light lamp —
+ * into one mesh per material, added to `root`. A machine is hundreds of small parts, so the room was ~10,000
+ * draw calls a frame; merged, it is a few per material and moving part. Meshes that can't be merged safely
+ * (mirrored, multi-material, hidden, morphing, or with unlike attributes) are left as they are.
+ */
+function mergeRigidMeshes(root: THREE.Object3D, moving: ReadonlySet<THREE.Object3D>) {
+  root.updateMatrixWorld(true);
+  const toRoot = root.matrixWorld.clone().invert();
+  const groups = new Map<string, { material: THREE.Material; renderOrder: number; meshes: THREE.Mesh[] }>();
+  const visit = (o: THREE.Object3D) => {
+    if ((o !== root && moving.has(o)) || !o.visible) return; // moves on its own (merged with its own parts), or hidden
+    // `root` itself stays (a moving part may be a mesh); only meshes under it are merged.
+    if (o !== root && o instanceof THREE.Mesh && o.constructor === THREE.Mesh && !Array.isArray(o.material) && !o.userData.lamp) {
+      const g = o.geometry as THREE.BufferGeometry;
+      const local = new THREE.Matrix4().multiplyMatrices(toRoot, o.matrixWorld);
+      if (local.determinant() > 0 && Object.keys(g.morphAttributes).length === 0) {
+        const attrs = Object.entries(g.attributes)
+          .map(([name, a]) => `${name}:${a.itemSize}:${a.normalized}:${(a as THREE.BufferAttribute).array?.constructor.name}`)
+          .sort()
+          .join(",");
+        const key = `${o.material.uuid}|${o.renderOrder}|${g.index ? "i" : "n"}|${attrs}`;
+        let group = groups.get(key);
+        if (!group) groups.set(key, (group = { material: o.material, renderOrder: o.renderOrder, meshes: [] }));
+        group.meshes.push(o);
+      }
+    }
+    o.children.forEach(visit);
+  };
+  visit(root);
+  for (const { material, renderOrder, meshes } of groups.values()) {
+    if (meshes.length < 2) continue;
+    const geos = meshes.map((m) => {
+      const g = (m.geometry as THREE.BufferGeometry).clone();
+      g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(toRoot, m.matrixWorld));
+      g.clearGroups();
+      return g;
+    });
+    const merged = mergeGeometries(geos);
+    geos.forEach((g) => g.dispose());
+    if (!merged) continue; // unlike attributes after all: keep the separate meshes
+    const mesh = new THREE.Mesh(merged, material);
+    mesh.renderOrder = renderOrder;
+    root.add(mesh);
+    meshes.forEach((m) => m.removeFromParent());
+  }
+}
+
+/**
  * Builds the whole room. Each machine type is built once and cloned (shared geometry). The
  * clones copy their prototype's moving parts every frame, each machine running its cycle at
  * its own time offset so identical cells don't move in lockstep.
@@ -309,9 +358,14 @@ export function createRoom(layout: MachinePlacement[] = ROOM_LAYOUT): MachinePar
     let proto = prototypes.get(place.type);
     if (!proto) {
       const parts = MACHINE_FACTORIES[place.type]();
-      const indices = animatedNodeIndices(parts);
+      const before = nodesOf(parts.object);
+      const moving = animatedNodeIndices(parts).map((k) => before[k]);
+      // The machine body, then each moving part, gets its rigidly attached meshes merged.
+      const movingSet = new Set(moving);
+      for (const body of [parts.object, ...moving]) mergeRigidMeshes(body, movingSet);
+      // Merging changed the tree, so find the moving nodes' places in it again (clones list nodes in the same order).
       const nodes = nodesOf(parts.object);
-      proto = { parts, indices, moving: indices.map((k) => nodes[k]) };
+      proto = { parts, indices: moving.map((o) => nodes.indexOf(o)), moving };
       prototypes.set(place.type, proto);
     }
     const machine = proto.parts.object.clone(true);

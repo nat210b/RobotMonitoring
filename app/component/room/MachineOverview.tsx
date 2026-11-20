@@ -37,7 +37,7 @@ const COLUMNS: Column<Row>[] = [
  * Left-hand overview: ring chart of how many machines are ON, a bar per section, and a table of
  * every machine's ON / OFF state, taken from each robot's robotPower (no robot or no value counts as OFF).
  */
-export function MachineOverview({ onSelect, power, robots, passCount, failCount, className }: { onSelect: (machineId: string) => void; /** PASS / FAIL totals of the status log; the two cards are shown under the ring chart when both are given. */ passCount?: number; failCount?: number; power: Record<string, boolean | undefined>; /** Robot records keyed by machine id. */ robots: Map<string, Robot>; className?: string }) {
+export function MachineOverview({ onSelect, power, robots, passCount, failCount, sectionCounts, hourly, className }: { /** PASS / FAIL logs per clock hour (oldest first); drawn as the "Output / hr" bars when given. */ hourly?: { labels: string[]; pass: number[]; fail: number[] }; /** PASS / FAIL per section id; listed under the section bars when given. */ sectionCounts?: Record<string, { pass: number; fail: number }>; onSelect: (machineId: string) => void; /** PASS / FAIL totals of the status log; the two cards are shown under the ring chart when both are given. */ passCount?: number; failCount?: number; power: Record<string, boolean | undefined>; /** Robot records keyed by machine id. */ robots: Map<string, Robot>; className?: string }) {
   const { rows, on, sections } = useMemo(() => {
     // Default order: machines that have a robot record first (ON before OFF), machines with no value last.
     // Array.sort is stable, so each group keeps the room layout order; header clicks still re-sort.
@@ -61,18 +61,6 @@ export function MachineOverview({ onSelect, power, robots, passCount, failCount,
       </div>
 
       <div className="flex items-center gap-4">
-        <DonutChart
-          size={104} thickness={0.32}
-          segments={[
-            { label: "ON", value: on, color: "var(--brand)" },
-            { label: "OFF", value: off, color: "var(--muted)" },
-          ]}
-        >
-          <span>
-            <span className="block text-base leading-none font-semibold">{Math.round((on / rows.length) * 100)}%</span>
-            <span className="text-[10px] text-muted">running</span>
-          </span>
-        </DonutChart>
         <ul className="flex-1 space-y-1.5 text-sm">
           <li className="flex items-center gap-2">
             <span className="size-2.5 rounded-full bg-brand" /> ON <b className="ml-auto pl-4">{on}</b>
@@ -87,22 +75,49 @@ export function MachineOverview({ onSelect, power, robots, passCount, failCount,
       </div>
 
       {passCount !== undefined && failCount !== undefined && (
-        <div className="flex gap-3">
-          <StatCard label="Pass" value={passCount} tone="success" className="flex-1" />
-          <StatCard label="Fail" value={failCount} tone="danger" className="flex-1" />
+        <div className="flex items-center gap-3">
+          {/* Performance = PASS share of all inspections: pass / (pass + fail). Gray ring while there are none. */}
+          <DonutChart
+            size={104}
+            thickness={0.22}
+            segments={passCount + failCount > 0 ? [{ label: "Pass", value: passCount, color: "var(--success)" }, { label: "Fail", value: failCount, color: "var(--danger)" }] : [{ label: "No inspections", value: 1, color: "var(--muted)" }]}
+          >
+            <b className="text-lg">{passCount + failCount > 0 ? `${Math.round((passCount / (passCount + failCount)) * 100)}%` : "—"}</b>
+          </DonutChart>
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <StatCard label="Pass" value={passCount} tone="success" />
+            <StatCard label="Fail" value={failCount} tone="danger" />
+          </div>
         </div>
       )}
 
-      <BarChart
-        labels={sections.map((s) => `${s.label}  ${s.on}/${s.total}`)}
-        series={[
-          { label: "ON", data: sections.map((s) => s.on), color: "var(--brand)" },
-          { label: "OFF", data: sections.map((s) => s.total - s.on), color: "var(--surface-3)" },
-        ]}
-        fill
-        rowHeight={20}
-        maxLabelLength={40}
-      />
+      {hourly && (
+        <div>
+          <h3 className="hud-title mb-1 text-[11px] font-semibold text-muted">Output / hr</h3>
+          <BarChart
+            vertical
+            height={96}
+            labels={hourly.labels}
+            series={[
+              { label: "Pass", data: hourly.pass, color: "var(--success)" },
+              { label: "Fail", data: hourly.fail, color: "var(--danger)" },
+            ]}
+          />
+        </div>
+      )}
+
+      {sectionCounts && (
+        <ul aria-label="PASS / FAIL per section" className="space-y-1 text-xs">
+          {sections.map((s) => (
+            <li key={s.id} className="flex items-center gap-2">
+              <span className="size-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
+              <span className="min-w-0 flex-1 truncate" title={s.label}>{s.label}</span>
+              <span className="w-16 text-right font-semibold text-success-light">PASS {sectionCounts[s.id]?.pass ?? 0}</span>
+              <span className="w-14 text-right font-semibold text-danger">FAIL {sectionCounts[s.id]?.fail ?? 0}</span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <DataTable columns={COLUMNS} data={rows} rowKey={(r) => r.id} pageSize={7} compact caption="Machine ON / OFF status" onRowClick={(r) => onSelect(r.id)} className="shrink-0 text-xs" />
     </aside>

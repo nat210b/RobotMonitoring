@@ -38,6 +38,8 @@ type Props = {
   showZones?: boolean;
   /** Camera mode (see MachineViewer). */
   view?: "iso" | "top" | "free";
+  /** Lock rotation in the iso / top views (default); off lets the user orbit in every view. */
+  lockRotation?: boolean;
   /** Ids of sections with a problem; their floor highlight turns yellow. */
   zoneAlerts?: readonly string[];
   /** Lamp to light per machine id (see MachineViewer). */
@@ -50,7 +52,7 @@ type Props = {
 };
 
 /** 3D view of the whole robot combined room with every machine in place. */
-export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, lamps, zoneAlerts, focusZoneId, onZoneSelect, className }: Props) {
+export default function Room({ height = 640, fill = false, autoRotate = false, animate = true, onSelect, selectedId, badges, showZones = true, view, lockRotation, lamps, zoneAlerts, focusZoneId, onZoneSelect, className }: Props) {
   return (
     <MachineViewer
       create={createRoom}
@@ -68,6 +70,7 @@ export default function Room({ height = 640, fill = false, autoRotate = false, a
       zones={ROOM_SECTIONS}
       showZones={showZones}
       view={view}
+      lockRotation={lockRotation}
       lamps={lamps}
       zoneAlerts={zoneAlerts}
       focusZoneId={focusZoneId}

@@ -25,31 +25,51 @@ export interface DonutChartProps {
   className?: string;
 }
 
-/** Ring chart (Chart.js) of segments that add up to the whole. Redraws when the segments or the theme change. */
+/**
+ * Ring chart (Chart.js) of segments that add up to the whole. The chart is built once (and again only when
+ * the theme or thickness changes); new segment values are applied in place, so the ring eases from the old
+ * values to the new ones instead of replaying its opening sweep from zero.
+ */
 export function DonutChart({ segments, size = 120, thickness = 0.3, children, className }: DonutChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const chartRef = useRef<Chart<"doughnut"> | null>(null);
   const theme = useThemeVersion();
   const key = JSON.stringify(segments);
+
+  const apply = (chart: Chart<"doughnut">, items: DonutSegment[]) => {
+    chart.data.labels = items.map((s) => s.label);
+    const dataset = chart.data.datasets[0];
+    dataset.data = items.map((s) => s.value);
+    dataset.backgroundColor = items.map((s) => resolveColor(s.color));
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const items = JSON.parse(key) as DonutSegment[];
     const chart = new Chart(canvas, {
       type: "doughnut",
-      data: {
-        labels: items.map((s) => s.label),
-        datasets: [{ data: items.map((s) => s.value), backgroundColor: items.map((s) => resolveColor(s.color)), borderWidth: 0 }],
-      },
+      data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0 }] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         cutout: `${Math.round((1 - thickness) * 100)}%`,
-        animation: { duration: 400 },
+        animation: { duration: 600, easing: "easeOutCubic" },
         plugins: { legend: { display: false } },
       },
     });
-    return () => chart.destroy();
+    chartRef.current = chart; // filled by the effect below, which runs right after this one
+    return () => {
+      chart.destroy();
+      chartRef.current = null;
+    };
+  }, [thickness, theme]);
+
+  // New values (or a freshly built chart): update in place so the ring animates from where it is.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    apply(chart, JSON.parse(key) as DonutSegment[]);
+    chart.update();
   }, [key, thickness, theme]);
 
   return (

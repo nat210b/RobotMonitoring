@@ -49,6 +49,8 @@ type MachineViewerProps = {
    * cameraDirection) or the top-down view and lock rotation (zoom and pan still work).
    */
   view?: "iso" | "top" | "free";
+  /** Lock rotation in the "iso" and "top" views (default). Off: those views only set the starting pose and dragging still orbits. */
+  lockRotation?: boolean;
   /** Which stack-light lamp to light per machine id. A machine without an entry lights red. */
   lamps?: Record<string, LampColor | undefined>;
   /** Zone id the camera is zoomed in on (null = whole model). The camera keeps the current `view`. */
@@ -117,6 +119,7 @@ export default function MachineViewer({
   zonePad = 0.25,
   showZones = true,
   view = "free",
+  lockRotation = true,
   lamps,
   focusZoneId = null,
   onZoneSelect,
@@ -239,7 +242,7 @@ export default function MachineViewer({
       return { target: box.getCenter(new THREE.Vector3()), dist: Math.max((r / Math.sin(Math.min(vHalf, hHalf))) * 1.05, controls.minDistance) };
     };
     const applyView = (v: "iso" | "top" | "free", instant = false, reframe = true) => {
-      controls.enableRotate = v === "free";
+      controls.enableRotate = v === "free" || !lockRotation;
       if (v === "free" && !reframe) {
         fly = null;
         return;
@@ -464,6 +467,14 @@ export default function MachineViewer({
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
     renderer.domElement.addEventListener("pointerup", onPointerUp);
 
+    // Transparent double-sided materials (glass, walls, floor tints) are drawn in one pass. Otherwise three.js
+    // draws each of them twice, flipping `side` and flagging needsUpdate on every draw — hundreds of shader
+    // program lookups (and megabytes of garbage) a frame, which made the room stutter.
+    scene.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m.transparent && m.side === THREE.DoubleSide) m.forceSinglePass = true;
+    });
+
     const resize = () => {
       const width = container.clientWidth || 1;
       const h = height === "fill" ? container.clientHeight || 1 : height;
@@ -563,7 +574,7 @@ export default function MachineViewer({
       renderer.forceContextLoss(); // free the WebGL context now (browsers cap how many can be open)
       renderer.domElement.remove();
     };
-  }, [create, animate, autoRotate, height, minZoom, viewDistance, hoverPad, cameraDirection, viewShift, zones, zonePad]);
+  }, [create, animate, autoRotate, height, minZoom, viewDistance, hoverPad, cameraDirection, viewShift, zones, zonePad, lockRotation]);
 
   return (
     <div ref={containerRef} className={className} style={{ position: "relative", overflow: "hidden", width: "100%", height: height === "fill" ? "100%" : height }}>

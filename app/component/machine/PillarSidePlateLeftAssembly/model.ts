@@ -10,9 +10,10 @@ import {
   cylinder,
   panelXY,
   panelZY,
+  ROBOT_CYCLE,
+  workCycle,
   type MachineParts,
   type Materials,
-  type RobotMotion,
 } from "../parts";
 
 /**
@@ -205,7 +206,6 @@ export function createPillarSidePlateLeftAssembly(): MachineParts {
   add(
     panelXY(x0, x1, BACK_DECK + P, gTop, -hd + 0.01, m.glass, 0.004), // back
     panelXY(x0, 0.068, DECK + P, gTop, hd - 0.01, m.glass, 0.004), // front, left + middle bays down to the deck
-    panelXY(0.068, x1, 0.774, gTop, hd - 0.01, m.glass, 0.004), // front, right bay: open between deck and 0.77 m
     box(W - P, 0.004, D - P, m.glass, 0, H - 0.002, 0), // roof
   );
   for (const sx of [-1, 1]) {
@@ -215,46 +215,80 @@ export function createPillarSidePlateLeftAssembly(): MachineParts {
   // Rail across the front-right opening
   add(beam([0.068, 0.774, zf], [x1, 0.774, zf], 0.02, m.aluminum));
 
-  // HMI on the front panel of the right bay (Ø holes and a handle cut-out beside it), plus a handle on the left bay
+  // Right bay front glass (open between deck and 0.77 m) carries the HMI (Ø holes and a handle cut-out beside it) and
+  // hangs on a pivot at the right post, so the whole panel with the HMI swings open (see the update below).
   const frontZ = hd + 0.006;
-  add(box(0.148, 0.112, 0.04, m.dark, 0.318, 1.054, frontZ + 0.016));
-  add(box(0.126, 0.074, 0.004, m.screen, 0.318, 1.062, frontZ + 0.037));
-  add(box(0.046, 0.012, 0.004, m.panelGrey, 0.318, 1.004, frontZ + 0.037));
+  const dz = frontZ - (hd - 0.01); // HMI parts sit on the pivot's own z
+  const glassDoor = new THREE.Group();
+  glassDoor.position.set(x1, 0, hd - 0.01);
+  glassDoor.add(panelXY(0.068 - x1, 0, 0.774, gTop, 0, m.glass, 0.004));
+  const onDoor = (...objs: THREE.Object3D[]) => glassDoor.add(...objs);
+  onDoor(box(0.148, 0.112, 0.04, m.dark, 0.318 - x1, 1.054, dz + 0.016));
+  onDoor(box(0.126, 0.074, 0.004, m.screen, 0.318 - x1, 1.062, dz + 0.037));
+  onDoor(box(0.046, 0.012, 0.004, m.panelGrey, 0.318 - x1, 1.004, dz + 0.037));
   for (const x of [0.244, 0.318, 0.39]) {
-    const hole = cylinder(0.008, 0.008, 0.006, m.dark, x, 0.948, frontZ);
+    const hole = cylinder(0.008, 0.008, 0.006, m.dark, x - x1, 0.948, dz);
     hole.rotation.x = Math.PI / 2;
-    add(hole);
+    onDoor(hole);
   }
-  add(box(0.046, 0.1, 0.008, m.dark, 0.155, 0.885, frontZ));
+  onDoor(box(0.046, 0.1, 0.008, m.dark, 0.155 - x1, 0.885, dz));
+  add(glassDoor);
   add(box(0.046, 0.1, 0.008, m.dark, -0.295, 0.985, frontZ));
   for (const [x, y] of [[-0.55, 1.2], [-0.55, 0.78], [0.55, 1.2], [0.55, 0.78]] as const) add(hinge(m, x, y, hd + 0.003, true));
 
-  // ── Two SCARAs, posed as drawn ───────────────────────────────────────────────────────────
-  // R1: base box with the connector board at the left (x −0.41), link 1 along +x to the elbow, link 2
-  // forward (+z) to the quill (left view: arm ~0.24 m long, quill z ≈ 0.27). R2: base at the right,
-  // arm forward to the front, quill at x 0.494.
-  const yaw = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.atan2(-(b.z - a.z), b.x - a.x);
-  const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(b.x - a.x, b.z - a.z);
-  const scaras: { base: [number, number]; elbow: [number, number]; quill: [number, number]; board?: "-x"; motion: Partial<RobotMotion> }[] = [
-    { base: [-0.41, 0.04], elbow: [-0.17, 0.07], quill: [-0.115, 0.265], board: "-x", motion: { swing: [0.25, -0.45], dip: 0.012 } },
-    { base: [0.41, 0.04], elbow: [0.43, 0.24], quill: [0.494, 0.29], motion: { swing: [-0.35, 0.5], dip: 0.012 } },
+  // ── Two SCARAs ───────────────────────────────────────────────────────────────────────────
+  // R1 (left): posed as drawn, base with the connector board at the left (x −0.41), link 1 along +x to the elbow,
+  // link 2 forward (+z) to the quill (left view: quill z ≈ 0.27).
+  // R2 (right): carries a PCB from the small bowl feeder to a front-right tray nest. The drawn pose is the pick, the
+  // swing goes to the place pose (two-link IK), lowers, and comes back.
+  type XZ = { x: number; z: number };
+  const yaw = (a: XZ, b: XZ) => Math.atan2(-(b.z - a.z), b.x - a.x);
+  const dist = (a: XZ, b: XZ) => Math.hypot(b.x - a.x, b.z - a.z);
+  const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a)); // shortest way round
+  const LINK1 = 0.24;
+  const LINK2 = 0.2;
+  /** J1 (absolute) and J2 (relative) angles that put the quill on `target`, with the elbow bent the given way (±1). */
+  const ik = (base: XZ, target: XZ, bend: number) => {
+    const r = Math.min(dist(base, target), LINK1 + LINK2 - 0.005);
+    const t2 = bend * Math.acos((r * r - LINK1 * LINK1 - LINK2 * LINK2) / (2 * LINK1 * LINK2));
+    return { t1: yaw(base, target) - Math.atan2(LINK2 * Math.sin(t2), LINK1 + LINK2 * Math.cos(t2)), t2 };
+  };
+  // R2's pick point (small bowl) and its four tray nests, filled in this order (front row first).
+  const carry = { base: { x: 0.41, z: 0.04 }, pick: { x: 0.218, z: -0.25 } };
+  const NESTS: XZ[] = [{ x: 0.226, z: 0.32 }, { x: 0.43, z: 0.32 }, { x: 0.226, z: 0.17 }, { x: 0.43, z: 0.17 }];
+  const bend = Math.sign(wrap(ik(carry.base, carry.pick, 1).t1 - yaw(carry.base, carry.pick)) * -1) || 1; // elbow out to the right
+  const pickPose = ik(carry.base, carry.pick, bend);
+  const placePoses = NESTS.map((n) => ik(carry.base, n, bend));
+  const swingTo = (k: number) => [wrap(placePoses[k].t1 - pickPose.t1), wrap(placePoses[k].t2 - pickPose.t2)];
+  const scaras: { base: XZ; board: "-x" | "+x"; options: Partial<Parameters<typeof createScara>[1]> }[] = [
+    {
+      base: { x: -0.41, z: 0.04 },
+      board: "-x",
+      options: (() => {
+        const e = { x: -0.17, z: 0.07 };
+        const q = { x: -0.115, z: 0.265 };
+        const baseAngle = yaw({ x: -0.41, z: 0.04 }, e);
+        return { baseAngle, elbowAngle: yaw(e, q) - baseAngle, link1: dist({ x: -0.41, z: 0.04 }, e), link2: dist(e, q), swing: [0.25, -0.45], dip: 0.012 };
+      })(),
+    },
+    {
+      base: carry.base,
+      board: "+x",
+      options: { baseAngle: pickPose.t1, elbowAngle: pickPose.t2, link1: LINK1, link2: LINK2, swing: swingTo(0), dip: 0.05 },
+    },
   ];
-  scaras.forEach(({ base, elbow, quill, board, motion }, i) => {
-    const b = { x: base[0], z: base[1] };
-    const e = { x: elbow[0], z: elbow[1] };
-    const q = { x: quill[0], z: quill[1] };
-    const baseAngle = yaw(b, e);
+  let carrier: ReturnType<typeof createScara> | undefined; // R2
+  let carrierQuill: THREE.Object3D | undefined;
+  scaras.forEach(({ base: b, board, options }) => {
     const robot = createScara(m, {
       pedestalHeight: 0.064,
-      baseAngle,
-      elbowAngle: yaw(e, q) - baseAngle,
-      link1: dist(b, e),
-      link2: dist(e, q),
+      baseAngle: 0,
+      elbowAngle: 0,
       headHeight: 0.12,
       headWidth: 0.13,
       connectorBoard: board,
-      offset: i / scaras.length,
-      ...motion,
+      offset: 0,
+      ...options,
     });
     robot.object.position.set(b.x, DECK, b.z);
     // Cable hose rising from the head and curling back over it, as in every drawn view. It rides on J2 so it
@@ -263,8 +297,12 @@ export function createPillarSidePlateLeftAssembly(): MachineParts {
     const lastGroup = (o?: THREE.Object3D) => o?.children.filter((c): c is THREE.Group => c instanceof THREE.Group).pop();
     const j2 = lastGroup(lastGroup(robot.object));
     j2?.add(createHose(m));
+    if (board === "+x") {
+      carrier = robot;
+      carrierQuill = lastGroup(j2);
+    }
     add(robot.object);
-    movers.push(robot);
+    if (board !== "+x") movers.push(robot); // R2 is driven by the PCB round below
   });
   // Two feed tubes beside R1's base (left view: Ø 36 mm, tops at 1.06 m), clear of its turning hub
   for (const z of [0.015, 0.05]) add(cylinder(0.018, 0.018, 1.06 - 0.7, m.aluminum, -0.505, 0.7 + (1.06 - 0.7) / 2, z, 20));
@@ -291,6 +329,22 @@ export function createPillarSidePlateLeftAssembly(): MachineParts {
   }
   add(createCableChain(m, 0.5, hd, DECK - 0.02));
 
+  // Small PCB (green board with a chip): one held by R2's quill while it carries, one lying in each nest once placed.
+  const createPcb = () => {
+    const g = new THREE.Group();
+    g.add(box(0.05, 0.004, 0.035, m.pcb, 0, 0, 0), box(0.014, 0.003, 0.014, m.dark, 0.008, 0.0035, 0));
+    return g;
+  };
+  const heldPcb = createPcb();
+  heldPcb.position.y = -0.185; // under the gripper tip
+  carrierQuill?.add(heldPcb);
+  const placedPcbs = NESTS.map((n) => {
+    const pcb = createPcb();
+    pcb.position.set(n.x, DECK + 0.058, n.z);
+    add(pcb);
+    return pcb;
+  });
+
   // ── Front-left bay: jig with locating plate and dispenser ────────────────────────────────
   // Kept below R1's tool path (the tool tip works ≈ 0.74 m high over x −0.2…−0.08) so the arm swings clear.
   add(box(0.14, 0.07, 0.13, m.robotGrey, -0.3, DECK + 0.035, 0.22)); // jig body
@@ -301,7 +355,35 @@ export function createPillarSidePlateLeftAssembly(): MachineParts {
   // ── Stack light on the back-left roof corner (tower ≈ 0.19 m, reaches 1.536 m) ────────────
   add(createStackLight(m, -hw + P / 2, H, -hd + P / 2, 0.005));
 
-  const update = (t: number) => movers.forEach((part) => part.update(t));
+  // R2 fills the four nests one cycle at a time. After the fourth the tray is full: R2 rests, the right-bay glass door
+  // (with the HMI) swings open for HOLD_CYCLES, then the trays are emptied and the round starts again.
+  const PLACE_CYCLES = NESTS.length;
+  const HOLD_CYCLES = 2;
+  const DOOR_OPEN = Math.PI * 0.5;
+  const DOOR_SPEED = 3; // rad/s
+  let doorAngle = 0;
+  let lastT = 0;
+  const update = (t: number) => {
+    const round = (t / ROBOT_CYCLE) % (PLACE_CYCLES + HOLD_CYCLES);
+    const cycle = Math.floor(round);
+    const placing = cycle < PLACE_CYCLES;
+    movers.forEach((part) => part.update(t));
+    if (carrier) {
+      const rest = (cycle + 0.95) * ROBOT_CYCLE; // resting (drawn) pose
+      carrier.object.userData.motion.swing = swingTo(Math.min(cycle, PLACE_CYCLES - 1));
+      carrier.update(placing ? round * ROBOT_CYCLE : rest);
+    }
+    const { carrying } = workCycle(round * ROBOT_CYCLE);
+    heldPcb.scale.setScalar(placing && carrying ? 1 : 0.001);
+    const u = round - cycle;
+    placedPcbs.forEach((pcb, k) => pcb.scale.setScalar(!placing || k < cycle || (k === cycle && u >= 0.48) ? 1 : 0.001));
+
+    const dt = Math.min(Math.abs(t - lastT), 0.1);
+    lastT = t;
+    const target = placing ? 0 : DOOR_OPEN;
+    doorAngle += Math.max(-DOOR_SPEED * dt, Math.min(DOOR_SPEED * dt, target - doorAngle));
+    glassDoor.rotation.y = doorAngle; // hinged at the right post, swings out to +z
+  };
   update(0);
   return { object: root, update };
 }
